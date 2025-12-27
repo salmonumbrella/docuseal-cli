@@ -1,0 +1,11 @@
+bin/
+dist/
+*.exe
+.DS_Store
+node_modules/
+.cursor/
+.specstory/
+coverage.out
+*.log
+/docuseal
+docs/

@@ -1,0 +1,58 @@
+version: 2
+
+project_name: docuseal
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: ./cmd/docuseal
+    binary: docuseal
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.buildDate={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+brews:
+  - name: docuseal-cli
+    repository:
+      owner: salmonumbrella
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/salmonumbrella/docuseal-cli"
+    description: "Command-line interface for DocuSeal document signing API"
+    license: "MIT"
+    install: |
+      bin.install "docuseal"
+    test: |
+      system "#{bin}/docuseal", "--help"
