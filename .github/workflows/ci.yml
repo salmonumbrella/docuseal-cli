@@ -95,7 +95,7 @@ jobs:
           GOOS=windows GOARCH=amd64 go build -o bin/docuseal-windows-amd64.exe ./cmd/docuseal
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: binaries
           path: bin/
