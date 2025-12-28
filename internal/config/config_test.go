@@ -11,6 +11,17 @@ import (
 )
 
 func TestLoad_EnvironmentVariables(t *testing.T) {
+	// Set up file backend to avoid macOS Keychain prompts in CI
+	tmpDir := t.TempDir()
+	origBackend := os.Getenv("KEYRING_BACKEND")
+	origFileDir := os.Getenv("KEYRING_FILE_DIR")
+	_ = os.Setenv("KEYRING_BACKEND", "file")
+	_ = os.Setenv("KEYRING_FILE_DIR", tmpDir)
+	defer func() {
+		_ = os.Setenv("KEYRING_BACKEND", origBackend)
+		_ = os.Setenv("KEYRING_FILE_DIR", origFileDir)
+	}()
+
 	// Save original env vars
 	origURL := os.Getenv("DOCUSEAL_URL")
 	origKey := os.Getenv("DOCUSEAL_API_KEY")
@@ -94,6 +105,17 @@ func TestLoad_EnvPrecedence(t *testing.T) {
 }
 
 func TestHasCredentials(t *testing.T) {
+	// Set up file backend to avoid macOS Keychain prompts in CI
+	tmpDir := t.TempDir()
+	origBackend := os.Getenv("KEYRING_BACKEND")
+	origFileDir := os.Getenv("KEYRING_FILE_DIR")
+	_ = os.Setenv("KEYRING_BACKEND", "file")
+	_ = os.Setenv("KEYRING_FILE_DIR", tmpDir)
+	defer func() {
+		_ = os.Setenv("KEYRING_BACKEND", origBackend)
+		_ = os.Setenv("KEYRING_FILE_DIR", origFileDir)
+	}()
+
 	origURL := os.Getenv("DOCUSEAL_URL")
 	origKey := os.Getenv("DOCUSEAL_API_KEY")
 	defer func() {
