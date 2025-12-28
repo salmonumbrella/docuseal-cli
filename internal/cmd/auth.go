@@ -19,25 +19,26 @@ var authCmd = &cobra.Command{
 	Long:  `Configure and manage DocuSeal API authentication.`,
 }
 
-var authSetupCmd = &cobra.Command{
-	Use:   "setup",
-	Short: "Configure DocuSeal credentials",
-	Long: `Store DocuSeal API credentials in the OS keychain.
+var authLoginCmd = &cobra.Command{
+	Use:   "login",
+	Short: "Authenticate via browser",
+	Long: `Authenticate with DocuSeal by opening a browser for interactive login.
 
-By default, opens a browser for interactive setup. Use --url and --api-key
-flags to configure from the command line instead.
+Credentials are stored securely in the OS keychain and used for all
+subsequent commands unless overridden by environment variables
+(DOCUSEAL_URL, DOCUSEAL_API_KEY).
 
-The credentials will be used for all subsequent commands unless
-overridden by environment variables (DOCUSEAL_URL, DOCUSEAL_API_KEY).`,
-	Example: `  # Interactive browser-based setup (default)
-  docuseal auth setup
+Use --url and --api-key flags to authenticate from the command line
+without opening a browser.`,
+	Example: `  # Interactive browser-based login (default)
+  docuseal auth login
 
-  # Setup from command line (no browser)
-  docuseal auth setup --url https://api.docuseal.com --api-key YOUR_API_KEY
+  # Login from command line (no browser)
+  docuseal auth login --url https://api.docuseal.com --api-key YOUR_API_KEY
 
-  # Setup with self-hosted instance
-  docuseal auth setup --url https://docuseal.example.com --api-key YOUR_API_KEY`,
-	RunE: runAuthSetup,
+  # Login with self-hosted instance
+  docuseal auth login --url https://docuseal.example.com --api-key YOUR_API_KEY`,
+	RunE: runAuthLogin,
 }
 
 var authStatusCmd = &cobra.Command{
@@ -68,32 +69,32 @@ var (
 
 func init() {
 	rootCmd.AddCommand(authCmd)
-	authCmd.AddCommand(authSetupCmd)
+	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authStatusCmd)
 	authCmd.AddCommand(authLogoutCmd)
 	authCmd.AddCommand(authWhoamiCmd)
 
-	authSetupCmd.Flags().StringVar(&authURL, "url", "", "DocuSeal instance URL (skips browser)")
-	authSetupCmd.Flags().StringVar(&authAPIKey, "api-key", "", "API key (skips browser)")
+	authLoginCmd.Flags().StringVar(&authURL, "url", "", "DocuSeal instance URL (skips browser)")
+	authLoginCmd.Flags().StringVar(&authAPIKey, "api-key", "", "API key (skips browser)")
 }
 
-func runAuthSetup(cmd *cobra.Command, args []string) error {
-	// CLI-based setup when both flags provided
+func runAuthLogin(cmd *cobra.Command, args []string) error {
+	// CLI-based login when both flags provided
 	if authURL != "" && authAPIKey != "" {
-		return runCLISetup(cmd)
+		return runCLILogin(cmd)
 	}
 
 	// If only one flag provided, error
 	if authURL != "" || authAPIKey != "" {
-		return fmt.Errorf("both --url and --api-key are required for CLI setup")
+		return fmt.Errorf("both --url and --api-key are required for CLI login")
 	}
 
-	// Default: browser-based setup
+	// Default: browser-based login
 	fmt.Fprintln(os.Stderr, "Opening browser for authentication...")
 	server := auth.NewSetupServer()
 	result, err := server.Start(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("browser setup failed: %w", err)
+		return fmt.Errorf("browser login failed: %w", err)
 	}
 	if result.Error != nil {
 		return result.Error
@@ -102,8 +103,7 @@ func runAuthSetup(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runCLISetup(cmd *cobra.Command) error {
-
+func runCLILogin(cmd *cobra.Command) error {
 	// Validate URL before attempting any API calls
 	if err := validateURL(authURL); err != nil {
 		return err
@@ -155,7 +155,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 		fmt.Fprintln(os.Stderr, "Not authenticated")
-		fmt.Fprintln(os.Stderr, "Run 'docuseal auth setup' or set DOCUSEAL_URL and DOCUSEAL_API_KEY")
+		fmt.Fprintln(os.Stderr, "Run 'docuseal auth login' or set DOCUSEAL_URL and DOCUSEAL_API_KEY")
 		return nil
 	}
 

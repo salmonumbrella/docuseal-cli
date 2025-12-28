@@ -25,7 +25,7 @@ type Credentials struct {
 }
 
 // ErrNotConfigured is returned when no credentials are configured
-var ErrNotConfigured = errors.New("docuseal not configured - run 'docuseal auth setup' or set DOCUSEAL_URL and DOCUSEAL_API_KEY")
+var ErrNotConfigured = errors.New("docuseal not configured - run 'docuseal auth login' or set DOCUSEAL_URL and DOCUSEAL_API_KEY")
 
 // keyringConfig returns the keyring configuration
 func keyringConfig() keyring.Config {

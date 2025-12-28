@@ -80,18 +80,20 @@ func (s *SetupServer) Start(ctx context.Context) (*SetupResult, error) {
 	}
 
 	// Start server in background
+	serverReady := make(chan struct{})
 	go func() {
+		close(serverReady)
 		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(os.Stderr, "HTTP server error: %v\n", err)
 		}
 	}()
 
-	// Open browser
-	go func() {
-		if err := openBrowser(baseURL); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to open browser: %v\n", err)
-		}
-	}()
+	// Wait for server goroutine to start, then open browser
+	<-serverReady
+	time.Sleep(50 * time.Millisecond) // Give server time to start accepting connections
+	if err := openBrowser(baseURL); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open browser: %v\n", err)
+	}
 
 	// Wait for result or context cancellation
 	select {

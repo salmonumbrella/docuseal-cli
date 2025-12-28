@@ -32,11 +32,11 @@ It provides commands for managing templates, submissions, and submitters
 for document signing workflows. Designed for automation and AI agent use.
 
 Authentication:
-  Configure via 'docuseal auth setup' (stored in OS keychain) or
+  Configure via 'docuseal auth login' (stored in OS keychain) or
   set DOCUSEAL_API_KEY and DOCUSEAL_URL environment variables.
 
 Examples:
-  docuseal auth setup --url https://docuseal.example.com --api-key YOUR_KEY
+  docuseal auth login --url https://docuseal.example.com --api-key YOUR_KEY
   docuseal templates list
   docuseal submissions create --template-id 123 --submitters "john@example.com:Signer"`,
 	SilenceUsage:  true,
@@ -92,7 +92,7 @@ func getUI() *ui.UI {
 func getClient() (*api.Client, error) {
 	creds, err := config.Load()
 	if err != nil {
-		return nil, fmt.Errorf("not authenticated: run 'docuseal auth setup' or set DOCUSEAL_API_KEY and DOCUSEAL_URL environment variables")
+		return nil, fmt.Errorf("not authenticated: run 'docuseal auth login' or set DOCUSEAL_API_KEY and DOCUSEAL_URL environment variables")
 	}
 
 	// Warn about old credentials (only once per session)
