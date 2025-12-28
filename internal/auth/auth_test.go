@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -281,6 +282,17 @@ func TestHandleValidate(t *testing.T) {
 
 // TestHandleSubmit tests credential submission and saving
 func TestHandleSubmit(t *testing.T) {
+	// Set up file backend to avoid macOS Keychain prompts and prevent cross-test pollution
+	tmpDir := t.TempDir()
+	origBackend := os.Getenv("KEYRING_BACKEND")
+	origFileDir := os.Getenv("KEYRING_FILE_DIR")
+	_ = os.Setenv("KEYRING_BACKEND", "file")
+	_ = os.Setenv("KEYRING_FILE_DIR", tmpDir)
+	defer func() {
+		_ = os.Setenv("KEYRING_BACKEND", origBackend)
+		_ = os.Setenv("KEYRING_FILE_DIR", origFileDir)
+	}()
+
 	tests := []struct {
 		name           string
 		method         string
