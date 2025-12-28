@@ -612,6 +612,9 @@ func TestSaveAndDelete_Integration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Ensure clean state before test
+			_ = Delete()
+
 			// Save credentials
 			err := Save(tt.creds)
 			if (err != nil) != tt.wantErr {
@@ -795,6 +798,9 @@ func TestDelete_Integration(t *testing.T) {
 	_ = os.Unsetenv("DOCUSEAL_API_KEY")
 
 	t.Run("delete existing credentials", func(t *testing.T) {
+		// Ensure clean state before test
+		_ = Delete()
+
 		// Save credentials first
 		creds := Credentials{
 			URL:    "https://example.com",
@@ -835,6 +841,9 @@ func TestDelete_Integration(t *testing.T) {
 	})
 
 	t.Run("delete after multiple saves", func(t *testing.T) {
+		// Ensure clean state before test
+		_ = Delete()
+
 		// Save multiple times
 		for i := 0; i < 3; i++ {
 			creds := Credentials{
