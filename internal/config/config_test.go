@@ -671,6 +671,9 @@ func TestSave_Integration(t *testing.T) {
 	_ = os.Unsetenv("DOCUSEAL_API_KEY")
 
 	t.Run("save sets CreatedAt automatically", func(t *testing.T) {
+		// Ensure clean state before test
+		_ = Delete()
+
 		before := time.Now()
 
 		creds := Credentials{
@@ -702,6 +705,9 @@ func TestSave_Integration(t *testing.T) {
 	})
 
 	t.Run("save preserves pre-set CreatedAt", func(t *testing.T) {
+		// Ensure clean state before test
+		_ = Delete()
+
 		customTime := time.Date(2023, 5, 15, 14, 30, 0, 0, time.UTC)
 		creds := Credentials{
 			URL:       "https://example.com",
@@ -726,6 +732,9 @@ func TestSave_Integration(t *testing.T) {
 	})
 
 	t.Run("save overwrites existing credentials", func(t *testing.T) {
+		// Ensure clean state before test
+		_ = Delete()
+
 		// First save
 		creds1 := Credentials{
 			URL:    "https://first.com",
