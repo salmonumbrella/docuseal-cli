@@ -48,6 +48,12 @@ func keyringConfig() keyring.Config {
 		}
 	}
 
+	// When KEYRING_BACKEND is explicitly set to "file", restrict to file backend only
+	// This prevents the library from probing other backends (like macOS Keychain)
+	if os.Getenv("KEYRING_BACKEND") == "file" {
+		cfg.AllowedBackends = []keyring.BackendType{keyring.FileBackend}
+	}
+
 	return cfg
 }
 
