@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/99designs/keyring"
@@ -28,9 +29,26 @@ var ErrNotConfigured = errors.New("docuseal not configured - run 'docuseal auth 
 
 // keyringConfig returns the keyring configuration
 func keyringConfig() keyring.Config {
-	return keyring.Config{
-		ServiceName: serviceName,
+	cfg := keyring.Config{
+		ServiceName:                    serviceName,
+		KeychainTrustApplication:       true,
+		KeychainSynchronizable:         false,
+		KeychainAccessibleWhenUnlocked: true,
 	}
+
+	// Support KEYRING_FILE_DIR env var for testing and file backend
+	if fileDir := os.Getenv("KEYRING_FILE_DIR"); fileDir != "" {
+		cfg.FileDir = fileDir
+		cfg.FilePasswordFunc = keyring.FixedStringPrompt("docuseal-cli")
+	} else {
+		// Default file directory for file backend fallback
+		if homeDir, err := os.UserHomeDir(); err == nil {
+			cfg.FileDir = filepath.Join(homeDir, ".config", "docuseal", "keyring")
+			cfg.FilePasswordFunc = keyring.FixedStringPrompt("docuseal-cli")
+		}
+	}
+
+	return cfg
 }
 
 // Load retrieves credentials with env var override
@@ -108,7 +126,8 @@ func Delete() error {
 
 	err = ring.Remove(accountKey)
 	if err != nil {
-		if errors.Is(err, keyring.ErrKeyNotFound) {
+		// Handle both keyring.ErrKeyNotFound and os.ErrNotExist (file backend)
+		if errors.Is(err, keyring.ErrKeyNotFound) || os.IsNotExist(err) {
 			return nil
 		}
 		return fmt.Errorf("failed to remove credentials: %w", err)
