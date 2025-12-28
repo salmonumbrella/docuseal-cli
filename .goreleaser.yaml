@@ -62,6 +62,7 @@ changelog:
 
 brews:
   - name: docuseal-cli
+    skip_upload: true
     repository:
       owner: salmonumbrella
       name: homebrew-tap
