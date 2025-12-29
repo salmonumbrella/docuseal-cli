@@ -60,18 +60,3 @@ changelog:
       - "^test:"
       - "^chore:"
 
-brews:
-  - name: docuseal-cli
-    skip_upload: true
-    repository:
-      owner: salmonumbrella
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
-    homepage: "https://github.com/salmonumbrella/docuseal-cli"
-    description: "CLI for DocuSeal API"
-    license: "MIT"
-    install: |
-      bin.install "docuseal"
-    test: |
-      system "#{bin}/docuseal", "--help"
