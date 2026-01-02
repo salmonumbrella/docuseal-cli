@@ -1,21 +1,25 @@
 version: 2
 updates:
+  # Go modules
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     commit-message:
       prefix: "deps"
-    labels:
-      - "dependencies"
-      - "go"
+    groups:
+      go-deps:
+        patterns:
+          - "*"
 
+  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     commit-message:
       prefix: "ci"
-    labels:
-      - "dependencies"
-      - "ci"
+    groups:
+      actions:
+        patterns:
+          - "*"
