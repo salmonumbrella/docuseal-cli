@@ -14,13 +14,19 @@ import (
 )
 
 var (
-	output     string
-	color      string
-	dryRun     bool
-	uiInstance *ui.UI
+	output       string
+	color        string
+	dryRun       bool
+	compactJSON  bool
+	quiet        bool
+	selectFields string
+	bareJSON     bool
+	withMeta     bool
+	uiInstance   *ui.UI
 )
 
 var credentialAgeWarningOnce sync.Once
+var resolvedOutputMode = outfmt.Text
 
 // rootCmd represents the base command
 var rootCmd = &cobra.Command{
@@ -41,6 +47,23 @@ Examples:
   docuseal submissions create --template-id 123 --submitters "john@example.com:Signer"`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Validate/resolve output mode once so downstream code can rely on it.
+		mode, err := detectOutputModeFromArgsAndEnv()
+		if err != nil {
+			return err
+		}
+		resolvedOutputMode = mode
+
+		switch color {
+		case "auto", "always", "never":
+			// ok
+		default:
+			return fmt.Errorf("invalid --color %q (use 'auto', 'always', or 'never')", color)
+		}
+
+		return nil
+	},
 }
 
 // Execute runs the root command
@@ -50,35 +73,29 @@ func Execute(ctx context.Context, args []string) error {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&output, "output", "o", "", "Output format: text, json (env: DOCUSEAL_OUTPUT)")
+	rootCmd.PersistentFlags().StringVarP(&output, "output", "o", "", "Output format: text, json, ndjson (env: DOCUSEAL_OUTPUT)")
 	rootCmd.PersistentFlags().StringVar(&color, "color", getEnvOrDefault("DOCUSEAL_COLOR", "auto"), "Color output: auto, always, never (env: DOCUSEAL_COLOR)")
+	rootCmd.PersistentFlags().BoolVar(&compactJSON, "compact-json", false, "Use compact JSON (no indentation) for --output json/ndjson")
+	rootCmd.PersistentFlags().StringVar(&selectFields, "select", "", "Select JSON fields to output (comma-separated keys or dot paths; applies to --output json/ndjson)")
+	rootCmd.PersistentFlags().BoolVar(&bareJSON, "bare", false, "Output bare JSON (no envelope/metadata) for list commands")
+	rootCmd.PersistentFlags().BoolVar(&withMeta, "meta", false, "Include a final metadata line in NDJSON outputs for list commands")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "Preview destructive operations without executing them")
+	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress non-essential warnings and progress output")
 }
 
-// getOutputMode returns the output mode based on flags and env vars
-func getOutputMode() outfmt.Mode {
-	// Flag takes precedence
+func detectOutputModeFromArgsAndEnv() (outfmt.Mode, error) {
+	// Flag takes precedence over env var.
 	if output != "" {
-		switch output {
-		case "json":
-			return outfmt.JSON
-		default:
-			return outfmt.Text
-		}
+		return outfmt.Parse(output)
 	}
-
-	// Check environment variable
 	if envOutput := os.Getenv("DOCUSEAL_OUTPUT"); envOutput != "" {
-		switch envOutput {
-		case "json":
-			return outfmt.JSON
-		default:
-			return outfmt.Text
-		}
+		return outfmt.Parse(envOutput)
 	}
-
-	return outfmt.Text
+	return outfmt.Text, nil
 }
+
+// getOutputMode returns the resolved output mode (validated during PersistentPreRunE).
+func getOutputMode() outfmt.Mode { return resolvedOutputMode }
 
 // getUI returns the UI instance, creating it if needed
 func getUI() *ui.UI {
@@ -97,6 +114,9 @@ func getClient() (*api.Client, error) {
 
 	// Warn about old credentials (only once per session)
 	credentialAgeWarningOnce.Do(func() {
+		if quiet {
+			return
+		}
 		if warning := config.CheckCredentialAge(creds); warning != "" {
 			fmt.Fprintln(os.Stderr, warning)
 		}
@@ -116,10 +136,35 @@ func getClientOrError(cmd *cobra.Command) (*api.Client, error) {
 
 // outputResult outputs the result based on mode
 func outputResult(mode outfmt.Mode, data any, textFn func()) {
+	if (mode == outfmt.JSON || mode == outfmt.NDJSON) && selectFields != "" {
+		if projected, err := outfmt.ApplySelect(data, selectFields); err == nil {
+			data = projected
+		} else {
+			getUI().Error("Error applying --select: %v", err)
+		}
+	}
+
 	switch mode {
 	case outfmt.JSON:
-		if err := outfmt.WriteJSON(os.Stdout, data); err != nil {
+		var err error
+		if compactJSON {
+			err = outfmt.WriteJSONCompact(os.Stdout, data)
+		} else {
+			err = outfmt.WriteJSON(os.Stdout, data)
+		}
+		if err != nil {
 			getUI().Error("Error encoding JSON: %v", err)
+		}
+	case outfmt.NDJSON:
+		if compactJSON {
+			if err := outfmt.WriteNDJSON(os.Stdout, data); err != nil {
+				getUI().Error("Error encoding NDJSON: %v", err)
+			}
+		} else {
+			// NDJSON is inherently compact; treat non-compact as compact.
+			if err := outfmt.WriteNDJSON(os.Stdout, data); err != nil {
+				getUI().Error("Error encoding NDJSON: %v", err)
+			}
 		}
 	default:
 		textFn()

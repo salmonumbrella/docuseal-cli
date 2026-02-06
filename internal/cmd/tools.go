@@ -9,9 +9,10 @@ import (
 )
 
 var toolsCmd = &cobra.Command{
-	Use:   "tools",
-	Short: "PDF utility tools",
-	Long:  `Tools for PDF manipulation and verification.`,
+	Use:     "tools",
+	Aliases: []string{"tool"},
+	Short:   "PDF utility tools",
+	Long:    `Tools for PDF manipulation and verification.`,
 }
 
 var toolsMergeCmd = &cobra.Command{
@@ -52,6 +53,7 @@ func runToolsMerge(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	mode := getOutputMode()
 
 	files := strings.Split(toolsFiles, ",")
 	for i := range files {
@@ -71,7 +73,14 @@ func runToolsMerge(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write output file: %w", err)
 	}
 
-	fmt.Printf("Merged %d PDFs into %s\n", len(files), toolsOutput)
+	outputResult(mode, map[string]any{
+		"files":         files,
+		"files_count":   len(files),
+		"output_path":   toolsOutput,
+		"bytes_written": len(merged),
+	}, func() {
+		fmt.Printf("Merged %d PDFs into %s\n", len(files), toolsOutput)
+	})
 	return nil
 }
 

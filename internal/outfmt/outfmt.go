@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 )
 
 // Mode represents the output format mode
@@ -13,6 +14,7 @@ type Mode int
 const (
 	Text Mode = iota
 	JSON
+	NDJSON
 )
 
 type contextKey struct{}
@@ -24,8 +26,10 @@ func Parse(s string) (Mode, error) {
 		return Text, nil
 	case "json":
 		return JSON, nil
+	case "ndjson", "jsonl":
+		return NDJSON, nil
 	default:
-		return Text, fmt.Errorf("invalid output format: %q (use 'text' or 'json')", s)
+		return Text, fmt.Errorf("invalid output format: %q (use 'text', 'json', or 'ndjson')", s)
 	}
 }
 
@@ -44,14 +48,45 @@ func ModeFromContext(ctx context.Context) Mode {
 
 // IsJSON returns true if the context is set to JSON output
 func IsJSON(ctx context.Context) bool {
-	return ModeFromContext(ctx) == JSON
+	mode := ModeFromContext(ctx)
+	return mode == JSON || mode == NDJSON
 }
 
-// WriteJSON writes a value as pretty-printed JSON
+// WriteJSON writes a value as pretty-printed JSON.
 func WriteJSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
+}
+
+// WriteJSONCompact writes a value as compact JSON (one object/array).
+func WriteJSONCompact(w io.Writer, v any) error {
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	return enc.Encode(v)
+}
+
+// WriteNDJSON writes a slice/array value as newline-delimited JSON (one element per line).
+// If v is not a slice/array, it falls back to compact JSON encoding of v.
+func WriteNDJSON(w io.Writer, v any) error {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
+		return WriteJSONCompact(w, v)
+	}
+
+	kind := rv.Kind()
+	if kind != reflect.Slice && kind != reflect.Array {
+		return WriteJSONCompact(w, v)
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	for i := 0; i < rv.Len(); i++ {
+		if err := enc.Encode(rv.Index(i).Interface()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // String returns the string representation of the mode
@@ -59,6 +94,8 @@ func (m Mode) String() string {
 	switch m {
 	case JSON:
 		return "json"
+	case NDJSON:
+		return "ndjson"
 	default:
 		return "text"
 	}

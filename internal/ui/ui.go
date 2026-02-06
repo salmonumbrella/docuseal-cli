@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/muesli/termenv"
+	"golang.org/x/term"
 )
 
 // ColorMode represents color output preferences
@@ -30,13 +31,19 @@ func New(mode ColorMode) *UI {
 
 	// Determine if colors should be active
 	colorActive := false
+	noColor := os.Getenv("NO_COLOR") != ""
 	switch mode {
 	case ColorAlways:
 		colorActive = true
 	case ColorNever:
 		colorActive = false
 	case ColorAuto:
-		colorActive = termenv.HasDarkBackground()
+		// Enable colors only on an interactive terminal with color support.
+		colorActive = term.IsTerminal(int(os.Stdout.Fd())) && output.Profile != termenv.Ascii
+	}
+	// Let explicit --color always win over NO_COLOR.
+	if noColor && mode != ColorAlways {
+		colorActive = false
 	}
 
 	return &UI{
