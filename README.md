@@ -71,6 +71,10 @@ docuseal submissions create \
 
 - `DOCUSEAL_OUTPUT` - Output format: `text` (default), `json`, or `ndjson`
 - `DOCUSEAL_COLOR` - Color mode: `auto` (default), `always`, or `never`
+- `DOCUSEAL_TIMEOUT` - HTTP request timeout (e.g. `30s`, `2m`)
+- `DOCUSEAL_RETRIES` - Max retries for rate-limited requests (HTTP 429)
+- `DOCUSEAL_RETRY_BASE_DELAY` - Base delay for 429 backoff (e.g. `1s`)
+- `DOCUSEAL_INSECURE_SKIP_VERIFY` - Set to `true` to skip TLS verification (self-signed certs)
 - `NO_COLOR` - Set to any value to disable colors (standard convention)
 
 ## Security
@@ -245,6 +249,15 @@ docuseal templates list -o json --select id,name
 docuseal templates list -o ndjson --select id,name
 ```
 
+### CLI Schema (Tool Routers)
+
+Let an agent or tool router discover the command surface:
+
+```bash
+docuseal schema -o json
+docuseal help submissions create --json -o json
+```
+
 ## Examples
 
 ### Complete Signing Workflow
@@ -330,11 +343,25 @@ All commands support these flags:
 - `--select <fields>` - Project JSON output to specific fields (comma-separated)
 - `--bare` - For list commands: output arrays in JSON instead of an envelope
 - `--meta` - For NDJSON list output: append a final `{"_meta": ...}` line
+- `--timeout <duration>` - HTTP request timeout
+- `--retries <n>` - Max retries for rate-limited requests (HTTP 429)
+- `--retry-base-delay <duration>` - Base delay for 429 backoff
+- `--insecure-skip-verify` - Skip TLS certificate verification (insecure)
 - `--color <mode>` - Color mode: `auto`, `always`, or `never` (default: auto)
 - `--dry-run` - Preview destructive operations without executing
-- `--quiet`, `-q` - Suppress non-essential warnings and progress output
+- `--quiet` - Suppress non-essential warnings and progress output
 - `--help` - Show help for any command
 - `--version` - Show version information
+
+## Exit Codes
+
+- `1` unknown error
+- `2` validation error
+- `3` authentication error
+- `4` rate limited
+- `5` not configured
+- `6` circuit breaker open
+- `7` timeout
 
 ## Shell Completions
 
