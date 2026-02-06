@@ -44,7 +44,7 @@ func init() {
 }
 
 func runEventsList(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}

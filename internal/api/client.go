@@ -3,13 +3,12 @@ package api
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
+	"math/rand/v2"
 	"net/http"
 	"regexp"
 	"strings"
@@ -50,9 +49,9 @@ type ClientOption func(*Client)
 func WithInsecureSkipVerify() ClientOption {
 	return func(c *Client) {
 		c.InsecureSkipVerify = true
-		c.HTTP.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		c.HTTP.Transport = transport
 	}
 }
 
@@ -143,14 +142,8 @@ func (c *Client) do(ctx context.Context, method, path string, body any, result a
 			if apiErr.StatusCode == 429 {
 				if attempt < c.maxRetries {
 					delay := c.baseDelay * time.Duration(1<<attempt) // exponential backoff
-					// Use crypto/rand for jitter calculation
 					maxJitter := int64(delay / 2)
-					jitterBig, randErr := rand.Int(rand.Reader, big.NewInt(maxJitter))
-					if randErr != nil {
-						// Fall back to no jitter if random generation fails
-						jitterBig = big.NewInt(0)
-					}
-					jitter := time.Duration(jitterBig.Int64())
+					jitter := time.Duration(rand.Int64N(maxJitter))
 					sleepDuration := delay + jitter
 
 					select {

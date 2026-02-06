@@ -122,20 +122,20 @@ func TestValidateFileSize_ErrorMessage(t *testing.T) {
 	}
 }
 
-func Test_validateFileSize_Deprecated(t *testing.T) {
-	// Test that the deprecated function still works
+func Test_ValidateFileSize_Wrapper(t *testing.T) {
+	// Test ValidateFileSize with valid and oversized files
 	tmpDir := t.TempDir()
 	validFile := createTestFile(t, tmpDir, "valid.txt", 1024)
 
-	err := validateFileSize(validFile)
+	err := ValidateFileSize(validFile)
 	if err != nil {
-		t.Errorf("validateFileSize() (deprecated) unexpected error = %v", err)
+		t.Errorf("ValidateFileSize() unexpected error = %v", err)
 	}
 
 	oversizedFile := createTestFile(t, tmpDir, "oversized.txt", maxFileSize+1)
-	err = validateFileSize(oversizedFile)
+	err = ValidateFileSize(oversizedFile)
 	if err == nil {
-		t.Error("validateFileSize() (deprecated) expected error but got nil")
+		t.Error("ValidateFileSize() expected error but got nil")
 	}
 }
 

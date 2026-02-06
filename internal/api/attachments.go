@@ -10,7 +10,7 @@ import (
 
 // CreateAttachment uploads a file attachment
 func (c *Client) CreateAttachment(ctx context.Context, filePath string) (*Attachment, error) {
-	if err := validateFileSize(filePath); err != nil {
+	if err := ValidateFileSize(filePath); err != nil {
 		return nil, err
 	}
 

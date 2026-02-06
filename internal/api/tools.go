@@ -31,7 +31,7 @@ type Signature struct {
 func (c *Client) MergePDFs(ctx context.Context, filePaths []string) ([]byte, error) {
 	var files []string
 	for _, path := range filePaths {
-		if err := validateFileSize(path); err != nil {
+		if err := ValidateFileSize(path); err != nil {
 			return nil, err
 		}
 		data, err := os.ReadFile(path)
@@ -52,7 +52,7 @@ func (c *Client) MergePDFs(ctx context.Context, filePaths []string) ([]byte, err
 
 // VerifySignature verifies a PDF signature
 func (c *Client) VerifySignature(ctx context.Context, filePath string) (*VerifySignatureResponse, error) {
-	if err := validateFileSize(filePath); err != nil {
+	if err := ValidateFileSize(filePath); err != nil {
 		return nil, err
 	}
 	data, err := os.ReadFile(filePath)

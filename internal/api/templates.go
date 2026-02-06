@@ -52,7 +52,7 @@ func (c *Client) GetTemplate(ctx context.Context, id int) (*Template, error) {
 
 // CreateTemplateFromPDF creates a template from a PDF file
 func (c *Client) CreateTemplateFromPDF(ctx context.Context, name, filePath, folder, externalID string, sharedLink *bool) (*Template, error) {
-	if err := validateFileSize(filePath); err != nil {
+	if err := ValidateFileSize(filePath); err != nil {
 		return nil, err
 	}
 	fileData, err := os.ReadFile(filePath)
@@ -86,7 +86,7 @@ func (c *Client) CreateTemplateFromPDF(ctx context.Context, name, filePath, fold
 
 // CreateTemplateFromDOCX creates a template from a DOCX file
 func (c *Client) CreateTemplateFromDOCX(ctx context.Context, name, filePath, folder, externalID string, sharedLink *bool) (*Template, error) {
-	if err := validateFileSize(filePath); err != nil {
+	if err := ValidateFileSize(filePath); err != nil {
 		return nil, err
 	}
 	fileData, err := os.ReadFile(filePath)

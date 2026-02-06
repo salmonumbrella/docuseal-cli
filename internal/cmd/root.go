@@ -138,7 +138,7 @@ func getUI() *ui.UI {
 func getClient() (*api.Client, error) {
 	creds, err := config.Load()
 	if err != nil {
-		return nil, fmt.Errorf("not authenticated: run 'docuseal auth login' or set DOCUSEAL_API_KEY and DOCUSEAL_URL environment variables")
+		return nil, fmt.Errorf("not authenticated (run 'docuseal auth login' or set DOCUSEAL_API_KEY and DOCUSEAL_URL environment variables): %w", err)
 	}
 
 	// Warn about old credentials (only once per session)
@@ -160,15 +160,6 @@ func getClient() (*api.Client, error) {
 		opts = append(opts, api.WithInsecureSkipVerify())
 	}
 	return api.NewWithOptions(creds.URL, creds.APIKey, opts...), nil
-}
-
-// getClientOrError gets a client or returns an error
-func getClientOrError(cmd *cobra.Command) (*api.Client, error) {
-	client, err := getClient()
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
 }
 
 // outputResult outputs the result based on mode
@@ -193,15 +184,8 @@ func outputResult(mode outfmt.Mode, data any, textFn func()) {
 			getUI().Error("Error encoding JSON: %v", err)
 		}
 	case outfmt.NDJSON:
-		if compactJSON {
-			if err := outfmt.WriteNDJSON(os.Stdout, data); err != nil {
-				getUI().Error("Error encoding NDJSON: %v", err)
-			}
-		} else {
-			// NDJSON is inherently compact; treat non-compact as compact.
-			if err := outfmt.WriteNDJSON(os.Stdout, data); err != nil {
-				getUI().Error("Error encoding NDJSON: %v", err)
-			}
+		if err := outfmt.WriteNDJSON(os.Stdout, data); err != nil {
+			getUI().Error("Error encoding NDJSON: %v", err)
 		}
 	default:
 		textFn()

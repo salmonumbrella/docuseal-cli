@@ -228,13 +228,16 @@ func validateURL(urlStr string) error {
 
 // isLocalhost checks if the URL points to a localhost address
 func isLocalhost(urlStr string) bool {
-	u, _ := url.Parse(urlStr)
+	u, err := url.Parse(urlStr)
+	if err != nil || u == nil {
+		return false
+	}
 	host := u.Hostname()
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 func runAuthWhoami(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}

@@ -226,7 +226,7 @@ func init() {
 }
 
 func runTemplatesList(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -320,7 +320,7 @@ func runTemplatesList(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesGet(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -365,7 +365,7 @@ func runTemplatesGet(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesCreatePDF(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -393,7 +393,7 @@ func runTemplatesCreatePDF(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesCreateDOCX(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -421,7 +421,7 @@ func runTemplatesCreateDOCX(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesCreateHTML(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -449,7 +449,7 @@ func runTemplatesCreateHTML(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesClone(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -478,7 +478,7 @@ func runTemplatesMerge(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid template IDs: %w", err)
 	}
 
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -497,7 +497,7 @@ func runTemplatesMerge(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesUpdate(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -521,7 +521,7 @@ func runTemplatesUpdate(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesArchive(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -549,7 +549,7 @@ func runTemplatesArchive(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesUpdateDocuments(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}

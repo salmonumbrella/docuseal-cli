@@ -18,8 +18,3 @@ func ValidateFileSize(filePath string) error {
 	}
 	return nil
 }
-
-// Deprecated: Use ValidateFileSize instead
-func validateFileSize(filePath string) error {
-	return ValidateFileSize(filePath)
-}

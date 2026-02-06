@@ -133,7 +133,7 @@ func init() {
 }
 
 func runWebhooksList(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func runWebhooksGet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid webhook ID: %w", err)
 	}
 
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func runWebhooksGet(cmd *cobra.Command, args []string) error {
 }
 
 func runWebhooksCreate(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -305,7 +305,7 @@ func runWebhooksUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid webhook ID: %w", err)
 	}
 
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -350,7 +350,7 @@ func runWebhooksDelete(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}

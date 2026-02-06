@@ -115,7 +115,7 @@ func init() {
 }
 
 func runSubmittersList(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func runSubmittersGet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid submitter ID: %w", err)
 	}
 
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -272,7 +272,7 @@ func runSubmittersUpdate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}

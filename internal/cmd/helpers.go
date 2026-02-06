@@ -18,6 +18,9 @@ import (
 // emailWithNameRe matches "Name <email>" format
 var emailWithNameRe = regexp.MustCompile(`^(.+?)\s*<([^>]+)>$`)
 
+// trailingNumberRe matches a trailing numeric ID
+var trailingNumberRe = regexp.MustCompile(`(\d+)$`)
+
 // parseSubmitters parses submitter strings in EMAIL:ROLE or "Name <EMAIL>:ROLE" format
 func parseSubmitters(submitterStrs []string) ([]api.SubmitterRequest, error) {
 	var submitters []api.SubmitterRequest
@@ -118,8 +121,7 @@ func parseIDArg(s string) (int, error) {
 	}
 
 	// Fall back to a trailing number.
-	re := regexp.MustCompile(`(\d+)$`)
-	if m := re.FindStringSubmatch(raw); len(m) == 2 {
+	if m := trailingNumberRe.FindStringSubmatch(raw); len(m) == 2 {
 		if id, err := strconv.Atoi(m[1]); err == nil {
 			return id, nil
 		}
@@ -149,12 +151,13 @@ func formatTimePtr(t *time.Time) string {
 	return formatTime(*t)
 }
 
-// truncateString truncates a string to maxLen characters
+// truncateString truncates a string to maxLen runes
 func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
-	return s[:maxLen-3] + "..."
+	return string(runes[:maxLen-3]) + "..."
 }
 
 // mustMarkFlagRequired marks a flag as required, panicking if it fails

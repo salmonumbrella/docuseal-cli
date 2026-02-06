@@ -276,7 +276,7 @@ func init() {
 }
 
 func runSubmissionsList(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -379,7 +379,7 @@ func runSubmissionsList(cmd *cobra.Command, args []string) error {
 }
 
 func runSubmissionsGet(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -435,7 +435,7 @@ func runSubmissionsCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -522,7 +522,7 @@ func runSubmissionsCreatePDF(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -553,7 +553,7 @@ func runSubmissionsCreateDOCX(cmd *cobra.Command, args []string) error {
 
 	variables := parseVariables(submissionsVariables)
 
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -582,7 +582,7 @@ func runSubmissionsCreateHTML(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -601,7 +601,7 @@ func runSubmissionsCreateHTML(cmd *cobra.Command, args []string) error {
 }
 
 func runSubmissionsDocuments(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -640,7 +640,7 @@ func runSubmissionsDocuments(cmd *cobra.Command, args []string) error {
 }
 
 func runSubmissionsArchive(cmd *cobra.Command, args []string) error {
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -673,7 +673,7 @@ func runSubmissionsInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}
@@ -793,7 +793,7 @@ func runSubmissionsCreateEmails(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid email list: %w", err)
 	}
 
-	client, err := getClientOrError(cmd)
+	client, err := getClient()
 	if err != nil {
 		return err
 	}

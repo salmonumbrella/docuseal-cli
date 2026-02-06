@@ -103,7 +103,7 @@ func (c *Client) CreateSubmission(ctx context.Context, req *CreateSubmissionRequ
 
 // CreateSubmissionFromPDF creates a submission from a PDF file
 func (c *Client) CreateSubmissionFromPDF(ctx context.Context, filePath string, submitters []SubmitterRequest, name string) (*Submission, error) {
-	if err := validateFileSize(filePath); err != nil {
+	if err := ValidateFileSize(filePath); err != nil {
 		return nil, err
 	}
 	fileData, err := os.ReadFile(filePath)
@@ -131,7 +131,7 @@ func (c *Client) CreateSubmissionFromPDF(ctx context.Context, filePath string, s
 
 // CreateSubmissionFromDOCX creates a submission from a DOCX file
 func (c *Client) CreateSubmissionFromDOCX(ctx context.Context, filePath string, submitters []SubmitterRequest, name string, variables map[string]string) (*Submission, error) {
-	if err := validateFileSize(filePath); err != nil {
+	if err := ValidateFileSize(filePath); err != nil {
 		return nil, err
 	}
 	fileData, err := os.ReadFile(filePath)
