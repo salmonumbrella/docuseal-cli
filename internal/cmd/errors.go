@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"os"
 	"strings"
 
@@ -44,10 +46,13 @@ func WriteError(w io.Writer, args []string, err error) {
 		mode = outfmt.Text
 	}
 
+	exitCode := ExitCode(err)
+
 	if mode == outfmt.JSON || mode == outfmt.NDJSON {
 		payload := map[string]any{
-			"error": err.Error(),
-			"type":  classifyError(err),
+			"error":     err.Error(),
+			"type":      classifyError(err),
+			"exit_code": exitCode,
 		}
 
 		var rl *api.RateLimitError
@@ -64,6 +69,27 @@ func WriteError(w io.Writer, args []string, err error) {
 	_, _ = io.WriteString(w, "Error: "+err.Error()+"\n")
 }
 
+// ExitCode returns a stable numeric exit code for known failure types.
+// Keep these values small and stable: agent runners frequently branch on them.
+func ExitCode(err error) int {
+	switch classifyError(err) {
+	case "validation":
+		return 2
+	case "auth":
+		return 3
+	case "rate_limit":
+		return 4
+	case "not_configured":
+		return 5
+	case "circuit_breaker":
+		return 6
+	case "timeout":
+		return 7
+	default:
+		return 1
+	}
+}
+
 func classifyError(err error) string {
 	switch {
 	case errors.Is(err, config.ErrNotConfigured):
@@ -76,7 +102,13 @@ func classifyError(err error) string {
 		return "validation"
 	case api.IsCircuitBreakerError(err):
 		return "circuit_breaker"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
 	default:
+		var ne net.Error
+		if errors.As(err, &ne) && ne.Timeout() {
+			return "timeout"
+		}
 		return "unknown"
 	}
 }

@@ -24,6 +24,6 @@ func main() {
 
 	if err := cmd.Execute(ctx, os.Args[1:]); err != nil {
 		cmd.WriteError(os.Stderr, os.Args[1:], err)
-		os.Exit(1)
+		os.Exit(cmd.ExitCode(err))
 	}
 }
