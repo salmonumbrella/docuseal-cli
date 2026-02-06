@@ -37,20 +37,23 @@ The binary will be available at `./bin/docuseal`.
 ### 1. Authenticate
 
 ```bash
-docuseal auth add my-instance
-# You'll be prompted securely for URL and API key
+docuseal auth login
+# Opens a browser for authentication and stores credentials in your OS keychain
+
+# Or authenticate non-interactively:
+docuseal auth login --url https://docuseal.example.com --api-key YOUR_KEY
 ```
 
 ### 2. Test Authentication
 
 ```bash
-docuseal auth test --account my-instance
+docuseal auth status
 ```
 
 ### 3. List Templates
 
 ```bash
-docuseal templates list --account my-instance
+docuseal templates list
 ```
 
 ### 4. Create a Submission
@@ -64,23 +67,9 @@ docuseal submissions create \
 
 ## Configuration
 
-### Account Selection
-
-Specify the account using either a flag or environment variable:
-
-```bash
-# Via flag
-docuseal templates list --account my-instance
-
-# Via environment
-export DOCUSEAL_ACCOUNT=my-instance
-docuseal templates list
-```
-
 ### Environment Variables
 
-- `DOCUSEAL_ACCOUNT` - Default account name to use
-- `DOCUSEAL_OUTPUT` - Output format: `text` (default) or `json`
+- `DOCUSEAL_OUTPUT` - Output format: `text` (default), `json`, or `ndjson`
 - `DOCUSEAL_COLOR` - Color mode: `auto` (default), `always`, or `never`
 - `NO_COLOR` - Set to any value to disable colors (standard convention)
 
@@ -98,11 +87,17 @@ Credentials are stored securely in your system's keychain:
 ### Authentication
 
 ```bash
-docuseal auth add <name>                 # Add credentials (prompts securely for URL and API key)
-docuseal auth list                       # List configured accounts
-docuseal auth remove <name>              # Remove account
-docuseal auth test [--account <name>]    # Test credentials
-docuseal auth status                     # Show current configuration
+docuseal auth login                      # Store credentials (browser by default)
+docuseal auth login --url ... --api-key ...  # Non-interactive login
+docuseal auth status                     # Show current configuration and connectivity
+docuseal auth whoami                     # Show authenticated user info
+docuseal auth logout                     # Remove stored credentials
+
+# Desire paths (aliases):
+docuseal login
+docuseal status
+docuseal whoami
+docuseal logout
 ```
 
 ### Templates
@@ -197,17 +192,58 @@ Machine-readable output:
 
 ```bash
 $ docuseal templates list --output json
-[
-  {
-    "id": 123,
-    "name": "Employment Contract",
-    "folder": "Contracts",
-    "created_at": "2024-01-15T10:00:00Z"
-  }
-]
+{
+  "results": [
+    {
+      "id": 123,
+      "name": "Employment Contract",
+      "folder_name": "Contracts",
+      "created_at": "2024-01-15T10:00:00Z"
+    }
+  ],
+  "count": 1,
+  "limit": 0,
+  "after": 0,
+  "before": 0,
+  "has_more": false
+}
 ```
 
 Data goes to stdout, errors and progress to stderr for clean piping.
+
+Use `--bare` to get the old list shape (arrays) if you want:
+
+```bash
+docuseal templates list --output json --bare
+```
+
+### NDJSON (jsonl)
+
+Stream-friendly output (one JSON object per line):
+
+```bash
+$ docuseal templates list --output ndjson
+{"id":123,"slug":"...","name":"..."}
+{"id":456,"slug":"...","name":"..."}
+```
+
+### Compact JSON
+
+Reduce token/byte usage:
+
+```bash
+$ docuseal templates list --output json --compact-json
+{"results":[{"id":123,"name":"..."},{"id":456,"name":"..."}],"count":2,"limit":0,"after":0,"before":0,"has_more":false}
+```
+
+### Field Projection
+
+Reduce output size for agents/scripts:
+
+```bash
+docuseal templates list -o json --select id,name
+docuseal templates list -o ndjson --select id,name
+```
 
 ## Examples
 
@@ -215,19 +251,20 @@ Data goes to stdout, errors and progress to stderr for clean piping.
 
 ```bash
 # Create a submission
-SUBMISSION=$(docuseal submissions create \
+SUBMITTERS=$(docuseal submissions create \
   --template-id 123 \
   --submitters "client@example.com:Client" \
   --output json)
 
-# Extract submitter ID
-SUBMITTER_ID=$(echo "$SUBMISSION" | jq -r '.submitters[0].id')
+# Extract IDs
+SUBMISSION_ID=$(echo "$SUBMITTERS" | jq -r '.[0].submission_id')
+SUBMITTER_ID=$(echo "$SUBMITTERS" | jq -r '.[0].id')
 
 # Check submitter status
 docuseal submitters get "$SUBMITTER_ID"
 
 # Get signed documents after completion
-docuseal submissions documents 456 --output json | jq -r '.[].url'
+docuseal submissions documents "$SUBMISSION_ID" --output json | jq -r '.[].url'
 ```
 
 ### Auto-Sign Workflow (API Signing)
@@ -257,36 +294,17 @@ docuseal templates merge --ids 123,456 --name "Combined Agreement"
 docuseal templates update-documents 123 --file ./updated-contract.pdf
 ```
 
-### Switch Between Instances
-
-```bash
-# Check production instance
-docuseal templates list --account prod
-
-# Check staging instance
-docuseal templates list --account staging
-
-# Or set default
-export DOCUSEAL_ACCOUNT=prod
-docuseal templates list
-```
-
 ### Automation
 
-Use `--yes` to skip confirmations:
-
 ```bash
-# Archive without confirmation
-docuseal templates archive 123 --yes
-
 # Get all template IDs
-docuseal templates list --output json | jq -r '.[].id'
+docuseal templates list --output json | jq -r '.results[].id'
 
 # Filter pending submissions
-docuseal submissions list --status pending --output json | jq length
+docuseal submissions list --status pending --output json | jq -r '.count'
 
 # Extract signing URLs
-docuseal submitters list --submission-id 789 --output json | jq -r '.[].url'
+docuseal submitters list --submission-id 789 --output json | jq -r '.results[].embed_src'
 ```
 
 ### Dry-Run Mode
@@ -307,11 +325,14 @@ docuseal submissions create --dry-run \
 
 All commands support these flags:
 
-- `--account <name>` - Account to use (overrides DOCUSEAL_ACCOUNT)
-- `--output <format>` - Output format: `text` or `json` (default: text)
+- `--output <format>` - Output format: `text`, `json`, or `ndjson` (default: text)
+- `--compact-json` - Compact JSON encoding (smaller output for agents/scripts)
+- `--select <fields>` - Project JSON output to specific fields (comma-separated)
+- `--bare` - For list commands: output arrays in JSON instead of an envelope
+- `--meta` - For NDJSON list output: append a final `{"_meta": ...}` line
 - `--color <mode>` - Color mode: `auto`, `always`, or `never` (default: auto)
 - `--dry-run` - Preview destructive operations without executing
-- `--yes`, `-y` - Skip confirmation prompts (useful for scripts and automation)
+- `--quiet`, `-q` - Suppress non-essential warnings and progress output
 - `--help` - Show help for any command
 - `--version` - Show version information
 
