@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/docuseal/docuseal-cli/internal/api"
 	"github.com/docuseal/docuseal-cli/internal/config"
@@ -22,6 +24,10 @@ var (
 	selectFields string
 	bareJSON     bool
 	withMeta     bool
+	timeout      time.Duration
+	retries      int
+	retryDelay   time.Duration
+	insecureTLS  bool
 	uiInstance   *ui.UI
 )
 
@@ -62,6 +68,19 @@ Examples:
 			return fmt.Errorf("invalid --color %q (use 'auto', 'always', or 'never')", color)
 		}
 
+		if timeout <= 0 {
+			return fmt.Errorf("invalid --timeout %q (must be > 0)", timeout.String())
+		}
+		if retries < 0 {
+			return fmt.Errorf("invalid --retries %d (must be >= 0)", retries)
+		}
+		if retryDelay <= 0 {
+			return fmt.Errorf("invalid --retry-base-delay %q (must be > 0)", retryDelay.String())
+		}
+		if insecureTLS && !quiet {
+			fmt.Fprintln(os.Stderr, "WARNING: TLS certificate verification disabled (--insecure-skip-verify).")
+		}
+
 		return nil
 	},
 }
@@ -73,14 +92,24 @@ func Execute(ctx context.Context, args []string) error {
 }
 
 func init() {
+	timeout = defaultTimeoutFromEnv()
+	retries = defaultRetriesFromEnv()
+	retryDelay = defaultRetryDelayFromEnv()
+	insecureTLS = defaultInsecureTLSFromEnv()
+
 	rootCmd.PersistentFlags().StringVarP(&output, "output", "o", "", "Output format: text, json, ndjson (env: DOCUSEAL_OUTPUT)")
 	rootCmd.PersistentFlags().StringVar(&color, "color", getEnvOrDefault("DOCUSEAL_COLOR", "auto"), "Color output: auto, always, never (env: DOCUSEAL_COLOR)")
 	rootCmd.PersistentFlags().BoolVar(&compactJSON, "compact-json", false, "Use compact JSON (no indentation) for --output json/ndjson")
 	rootCmd.PersistentFlags().StringVar(&selectFields, "select", "", "Select JSON fields to output (comma-separated keys or dot paths; applies to --output json/ndjson)")
 	rootCmd.PersistentFlags().BoolVar(&bareJSON, "bare", false, "Output bare JSON (no envelope/metadata) for list commands")
 	rootCmd.PersistentFlags().BoolVar(&withMeta, "meta", false, "Include a final metadata line in NDJSON outputs for list commands")
+	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", timeout, "HTTP request timeout (env: DOCUSEAL_TIMEOUT)")
+	rootCmd.PersistentFlags().IntVar(&retries, "retries", retries, "Max retries for rate-limited requests (HTTP 429) (env: DOCUSEAL_RETRIES)")
+	rootCmd.PersistentFlags().DurationVar(&retryDelay, "retry-base-delay", retryDelay, "Base delay for exponential backoff when rate limited (env: DOCUSEAL_RETRY_BASE_DELAY)")
+	rootCmd.PersistentFlags().BoolVar(&insecureTLS, "insecure-skip-verify", insecureTLS, "Skip TLS certificate verification (env: DOCUSEAL_INSECURE_SKIP_VERIFY)")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "Preview destructive operations without executing them")
-	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress non-essential warnings and progress output")
+	// No shorthand: "-q" is commonly used by subcommands (e.g. "--query -q").
+	rootCmd.PersistentFlags().BoolVar(&quiet, "quiet", false, "Suppress non-essential warnings and progress output")
 }
 
 func detectOutputModeFromArgsAndEnv() (outfmt.Mode, error) {
@@ -122,7 +151,15 @@ func getClient() (*api.Client, error) {
 		}
 	})
 
-	return api.New(creds.URL, creds.APIKey), nil
+	opts := []api.ClientOption{
+		api.WithTimeout(timeout),
+		api.WithRetries(retries),
+		api.WithRetryBaseDelay(retryDelay),
+	}
+	if insecureTLS {
+		opts = append(opts, api.WithInsecureSkipVerify())
+	}
+	return api.NewWithOptions(creds.URL, creds.APIKey, opts...), nil
 }
 
 // getClientOrError gets a client or returns an error
@@ -177,6 +214,41 @@ func getEnvOrDefault(key, defaultVal string) string {
 		return val
 	}
 	return defaultVal
+}
+
+func defaultTimeoutFromEnv() time.Duration {
+	if v := os.Getenv("DOCUSEAL_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return 30 * time.Second
+}
+
+func defaultRetriesFromEnv() int {
+	if v := os.Getenv("DOCUSEAL_RETRIES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			return n
+		}
+	}
+	return 3
+}
+
+func defaultRetryDelayFromEnv() time.Duration {
+	if v := os.Getenv("DOCUSEAL_RETRY_BASE_DELAY"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return 1 * time.Second
+}
+
+func defaultInsecureTLSFromEnv() bool {
+	if v := os.Getenv("DOCUSEAL_INSECURE_SKIP_VERIFY"); v != "" {
+		b, err := strconv.ParseBool(v)
+		return err == nil && b
+	}
+	return false
 }
 
 // isDryRun returns whether dry-run mode is enabled
