@@ -11,7 +11,6 @@ import (
 	"io"
 	"math/big"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -39,6 +38,9 @@ type Client struct {
 	HTTP               *http.Client
 	InsecureSkipVerify bool
 	cb                 *circuitBreaker
+
+	maxRetries int
+	baseDelay  time.Duration
 }
 
 // ClientOption is a functional option for configuring the Client
@@ -51,7 +53,33 @@ func WithInsecureSkipVerify() ClientOption {
 		c.HTTP.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
-		fmt.Fprintln(os.Stderr, "WARNING: TLS certificate verification disabled (insecure mode)")
+	}
+}
+
+// WithTimeout sets the HTTP client timeout.
+func WithTimeout(d time.Duration) ClientOption {
+	return func(c *Client) {
+		if d > 0 {
+			c.HTTP.Timeout = d
+		}
+	}
+}
+
+// WithRetries sets the maximum number of retries for rate-limited requests (HTTP 429).
+func WithRetries(n int) ClientOption {
+	return func(c *Client) {
+		if n >= 0 {
+			c.maxRetries = n
+		}
+	}
+}
+
+// WithRetryBaseDelay sets the base delay used for exponential backoff when rate limited.
+func WithRetryBaseDelay(d time.Duration) ClientOption {
+	return func(c *Client) {
+		if d > 0 {
+			c.baseDelay = d
+		}
 	}
 }
 
@@ -74,6 +102,9 @@ func NewWithOptions(baseURL, apiKey string, opts ...ClientOption) *Client {
 		APIKey:  apiKey,
 		HTTP:    &http.Client{Timeout: defaultTimeout},
 		cb:      newCircuitBreaker(),
+
+		maxRetries: maxRetries,
+		baseDelay:  baseDelay,
 	}
 
 	for _, opt := range opts {
@@ -92,7 +123,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, result a
 
 	var lastErr error
 
-	for attempt := 0; attempt <= maxRetries; attempt++ {
+	for attempt := 0; attempt <= c.maxRetries; attempt++ {
 		err := c.doOnce(ctx, method, path, body, result)
 		if err == nil {
 			c.cb.recordSuccess()
@@ -110,8 +141,8 @@ func (c *Client) do(ctx context.Context, method, path string, body any, result a
 
 			// Handle rate limiting with retries
 			if apiErr.StatusCode == 429 {
-				if attempt < maxRetries {
-					delay := baseDelay * time.Duration(1<<attempt) // exponential backoff
+				if attempt < c.maxRetries {
+					delay := c.baseDelay * time.Duration(1<<attempt) // exponential backoff
 					// Use crypto/rand for jitter calculation
 					maxJitter := int64(delay / 2)
 					jitterBig, randErr := rand.Int(rand.Reader, big.NewInt(maxJitter))
@@ -130,7 +161,8 @@ func (c *Client) do(ctx context.Context, method, path string, body any, result a
 					}
 				}
 				// Max retries exhausted, return RateLimitError
-				retryAfter := int(baseDelay.Seconds() * float64(1<<maxRetries))
+				retryAfterDur := c.baseDelay * time.Duration(1<<c.maxRetries)
+				retryAfter := int(retryAfterDur.Seconds())
 				return &RateLimitError{RetryAfter: retryAfter}
 			}
 
