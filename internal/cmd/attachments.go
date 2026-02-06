@@ -7,9 +7,10 @@ import (
 )
 
 var attachmentsCmd = &cobra.Command{
-	Use:   "attachments",
-	Short: "Manage attachments",
-	Long:  `Upload and manage file attachments.`,
+	Use:     "attachments",
+	Aliases: []string{"attachment", "att"},
+	Short:   "Manage attachments",
+	Long:    `Upload and manage file attachments.`,
 }
 
 var attachmentsUploadCmd = &cobra.Command{

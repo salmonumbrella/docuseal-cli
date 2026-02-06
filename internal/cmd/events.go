@@ -5,13 +5,15 @@ import (
 	"os"
 
 	"github.com/docuseal/docuseal-cli/internal/api"
+	"github.com/docuseal/docuseal-cli/internal/outfmt"
 	"github.com/spf13/cobra"
 )
 
 var eventsCmd = &cobra.Command{
-	Use:   "events",
-	Short: "View events and webhooks",
-	Long:  `List form and submission events.`,
+	Use:     "events",
+	Aliases: []string{"event", "ev"},
+	Short:   "View events and webhooks",
+	Long:    `List form and submission events.`,
 }
 
 var eventsListCmd = &cobra.Command{
@@ -48,17 +50,59 @@ func runEventsList(cmd *cobra.Command, args []string) error {
 	}
 	mode := getOutputMode()
 
+	limit := eventsLimit
+	reqLimit := limit
+	if ((mode == outfmt.JSON && !bareJSON) || (mode == outfmt.NDJSON && withMeta)) && limit > 0 {
+		reqLimit = limit + 1
+	}
+
 	var events []api.Event
 	var listErr error
 
 	if eventsCategory == "form" {
-		events, listErr = client.ListFormEvents(cmd.Context(), eventsType, eventsLimit)
+		events, listErr = client.ListFormEvents(cmd.Context(), eventsType, reqLimit)
 	} else {
-		events, listErr = client.ListSubmissionEvents(cmd.Context(), eventsType, eventsSubmissionID, eventsLimit)
+		events, listErr = client.ListSubmissionEvents(cmd.Context(), eventsType, eventsSubmissionID, reqLimit)
 	}
 
 	if listErr != nil {
 		return fmt.Errorf("failed to list events: %w", listErr)
+	}
+
+	if (mode == outfmt.JSON && !bareJSON) || (mode == outfmt.NDJSON && withMeta) {
+		out := events
+		hasMore := false
+		if limit > 0 && len(out) > limit {
+			hasMore = true
+			out = out[:limit]
+		}
+
+		if mode == outfmt.JSON && !bareJSON {
+			env := makeListEnvelope(out, len(out), limit, 0, 0, hasMore, 0, 0)
+			env["category"] = eventsCategory
+			env["type"] = eventsType
+			env["submission_id"] = eventsSubmissionID
+			outputResult(mode, env, func() {})
+			return nil
+		}
+
+		meta := map[string]any{
+			"_meta": map[string]any{
+				"count":         len(out),
+				"limit":         limit,
+				"has_more":      hasMore,
+				"category":      eventsCategory,
+				"type":          eventsType,
+				"submission_id": eventsSubmissionID,
+			},
+		}
+		stream := make([]any, 0, len(out)+1)
+		for _, e := range out {
+			stream = append(stream, e)
+		}
+		stream = append(stream, meta)
+		outputResult(mode, stream, func() {})
+		return nil
 	}
 
 	outputResult(mode, events, func() {

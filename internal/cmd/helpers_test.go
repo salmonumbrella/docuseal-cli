@@ -31,10 +31,10 @@ func TestParseSubmitters(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "invalid format - no colon",
+			name:    "valid submitter without role (role resolved later)",
 			input:   []string{"john@example.com"},
-			wantLen: 0,
-			wantErr: true,
+			wantLen: 1,
+			wantErr: false,
 		},
 		{
 			name:    "invalid email - missing @",

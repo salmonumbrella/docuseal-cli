@@ -1,18 +1,20 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"strconv"
+	"strings"
 
 	"github.com/docuseal/docuseal-cli/internal/api"
+	"github.com/docuseal/docuseal-cli/internal/outfmt"
 	"github.com/docuseal/docuseal-cli/internal/validation"
 	"github.com/spf13/cobra"
 )
 
 var submissionsCmd = &cobra.Command{
 	Use:     "submissions",
-	Aliases: []string{"sub", "s"},
+	Aliases: []string{"submission", "sub", "s"},
 	Short:   "Manage submissions",
 	Long:    `List, create, and manage document signing submissions.`,
 }
@@ -187,6 +189,7 @@ var (
 	submissionsHTML                 string
 	submissionsVariables            []string
 	submissionsEmails               string
+	submissionsEmailsCSV            string
 	submissionsMessageSubject       string
 	submissionsMessageBody          string
 	submissionsCompletedRedirectURL string
@@ -222,7 +225,8 @@ func init() {
 
 	// Create flags
 	submissionsCreateCmd.Flags().IntVar(&submissionsTemplateID, "template-id", 0, "Template ID (required)")
-	submissionsCreateCmd.Flags().StringArrayVar(&submissionsSubmitters, "submitters", nil, "Submitters in EMAIL:ROLE format (required, can be repeated)")
+	submissionsCreateCmd.Flags().StringArrayVar(&submissionsSubmitters, "submitters", nil, "Submitters in EMAIL[:ROLE] format (can be repeated; ROLE optional when resolvable from template)")
+	submissionsCreateCmd.Flags().StringVar(&submissionsEmailsCSV, "emails", "", "Comma-separated emails (shortcut; uses template roles/order)")
 	submissionsCreateCmd.Flags().BoolVar(&submissionsSendEmail, "send-email", false, "Send email to submitters")
 	submissionsCreateCmd.Flags().BoolVar(&submissionsSendSMS, "send-sms", false, "Send SMS notification to submitters")
 	submissionsCreateCmd.Flags().StringVar(&submissionsMessage, "message", "", "Custom message in SUBJECT:BODY format")
@@ -231,11 +235,11 @@ func init() {
 	submissionsCreateCmd.Flags().StringVar(&submissionsReplyTo, "reply-to", "", "Reply-To address for notification emails")
 	submissionsCreateCmd.Flags().StringVar(&submissionsExpireAt, "expire-at", "", "Expiration datetime (ISO 8601 format)")
 	mustMarkFlagRequired(submissionsCreateCmd, "template-id")
-	mustMarkFlagRequired(submissionsCreateCmd, "submitters")
+	// Either --submitters or --emails must be provided (validated at runtime).
 
 	// Init flags (reuse existing flags from create)
 	submissionsInitCmd.Flags().IntVar(&submissionsTemplateID, "template-id", 0, "Template ID (required)")
-	submissionsInitCmd.Flags().StringArrayVar(&submissionsSubmitters, "submitters", nil, "Submitters in EMAIL:ROLE format (required)")
+	submissionsInitCmd.Flags().StringArrayVar(&submissionsSubmitters, "submitters", nil, "Submitters in EMAIL[:ROLE] format (required; ROLE optional when resolvable from template)")
 	mustMarkFlagRequired(submissionsInitCmd, "template-id")
 	mustMarkFlagRequired(submissionsInitCmd, "submitters")
 
@@ -250,14 +254,14 @@ func init() {
 
 	// Create PDF flags
 	submissionsCreatePDFCmd.Flags().StringVar(&submissionsFile, "file", "", "PDF file path (required)")
-	submissionsCreatePDFCmd.Flags().StringArrayVar(&submissionsSubmitters, "submitters", nil, "Submitters in EMAIL:ROLE format (required)")
+	submissionsCreatePDFCmd.Flags().StringArrayVar(&submissionsSubmitters, "submitters", nil, "Submitters in EMAIL[:ROLE] format (required; default ROLE: Signer)")
 	submissionsCreatePDFCmd.Flags().StringVar(&submissionsName, "name", "", "Submission name")
 	mustMarkFlagRequired(submissionsCreatePDFCmd, "file")
 	mustMarkFlagRequired(submissionsCreatePDFCmd, "submitters")
 
 	// Create DOCX flags
 	submissionsCreateDOCXCmd.Flags().StringVar(&submissionsFile, "file", "", "DOCX file path (required)")
-	submissionsCreateDOCXCmd.Flags().StringArrayVar(&submissionsSubmitters, "submitters", nil, "Submitters in EMAIL:ROLE format (required)")
+	submissionsCreateDOCXCmd.Flags().StringArrayVar(&submissionsSubmitters, "submitters", nil, "Submitters in EMAIL[:ROLE] format (required; default ROLE: Signer)")
 	submissionsCreateDOCXCmd.Flags().StringVar(&submissionsName, "name", "", "Submission name")
 	submissionsCreateDOCXCmd.Flags().StringArrayVar(&submissionsVariables, "variables", nil, "Variables in KEY=VALUE format")
 	mustMarkFlagRequired(submissionsCreateDOCXCmd, "file")
@@ -265,7 +269,7 @@ func init() {
 
 	// Create HTML flags
 	submissionsCreateHTMLCmd.Flags().StringVar(&submissionsHTML, "html", "", "HTML content (required)")
-	submissionsCreateHTMLCmd.Flags().StringArrayVar(&submissionsSubmitters, "submitters", nil, "Submitters in EMAIL:ROLE format (required)")
+	submissionsCreateHTMLCmd.Flags().StringArrayVar(&submissionsSubmitters, "submitters", nil, "Submitters in EMAIL[:ROLE] format (required; default ROLE: Signer)")
 	submissionsCreateHTMLCmd.Flags().StringVar(&submissionsName, "name", "", "Submission name")
 	mustMarkFlagRequired(submissionsCreateHTMLCmd, "html")
 	mustMarkFlagRequired(submissionsCreateHTMLCmd, "submitters")
@@ -278,9 +282,15 @@ func runSubmissionsList(cmd *cobra.Command, args []string) error {
 	}
 	mode := getOutputMode()
 
+	limit := submissionsLimit
+	reqLimit := limit
+	if ((mode == outfmt.JSON && !bareJSON) || (mode == outfmt.NDJSON && withMeta)) && limit > 0 {
+		reqLimit = limit + 1
+	}
+
 	submissions, err := client.ListSubmissions(
 		cmd.Context(),
-		submissionsLimit,
+		reqLimit,
 		submissionsTemplateID,
 		submissionsStatus,
 		submissionsQuery,
@@ -292,6 +302,48 @@ func runSubmissionsList(cmd *cobra.Command, args []string) error {
 	)
 	if err != nil {
 		return fmt.Errorf("failed to list submissions: %w", err)
+	}
+
+	if (mode == outfmt.JSON && !bareJSON) || (mode == outfmt.NDJSON && withMeta) {
+		out := submissions
+		hasMore := false
+		if limit > 0 && len(out) > limit {
+			hasMore = true
+			out = out[:limit]
+		}
+		nextAfter := 0
+		nextBefore := 0
+		if len(out) > 0 {
+			nextBefore = out[0].ID
+			if hasMore {
+				nextAfter = out[len(out)-1].ID
+			}
+		}
+
+		if mode == outfmt.JSON && !bareJSON {
+			env := makeListEnvelope(out, len(out), limit, submissionsAfter, submissionsBefore, hasMore, nextAfter, nextBefore)
+			outputResult(mode, env, func() {})
+			return nil
+		}
+
+		meta := map[string]any{
+			"_meta": map[string]any{
+				"count":       len(out),
+				"limit":       limit,
+				"after":       submissionsAfter,
+				"before":      submissionsBefore,
+				"has_more":    hasMore,
+				"next_after":  nextAfter,
+				"next_before": nextBefore,
+			},
+		}
+		stream := make([]any, 0, len(out)+1)
+		for _, s := range out {
+			stream = append(stream, s)
+		}
+		stream = append(stream, meta)
+		outputResult(mode, stream, func() {})
+		return nil
 	}
 
 	outputResult(mode, submissions, func() {
@@ -327,16 +379,16 @@ func runSubmissionsList(cmd *cobra.Command, args []string) error {
 }
 
 func runSubmissionsGet(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
-	if err != nil {
-		return fmt.Errorf("invalid submission ID: %w", err)
-	}
-
 	client, err := getClientOrError(cmd)
 	if err != nil {
 		return err
 	}
 	mode := getOutputMode()
+
+	id, err := resolveSubmissionID(cmd.Context(), client, args[0])
+	if err != nil {
+		return err
+	}
 
 	submission, err := client.GetSubmission(cmd.Context(), id)
 	if err != nil {
@@ -365,11 +417,6 @@ func runSubmissionsGet(cmd *cobra.Command, args []string) error {
 }
 
 func runSubmissionsCreate(cmd *cobra.Command, args []string) error {
-	submitters, err := parseSubmitters(submissionsSubmitters)
-	if err != nil {
-		return err
-	}
-
 	message, err := parseMessage(submissionsMessage)
 	if err != nil {
 		return err
@@ -393,6 +440,40 @@ func runSubmissionsCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	mode := getOutputMode()
+
+	// Desire path: allow --emails to avoid role syntax entirely.
+	if strings.TrimSpace(submissionsEmailsCSV) != "" {
+		req := &api.CreateSubmissionsFromEmailsRequest{
+			TemplateID: submissionsTemplateID,
+			Emails:     submissionsEmailsCSV,
+			SendEmail:  submissionsSendEmail,
+			Message:    message,
+		}
+
+		createdSubmitters, err := client.CreateSubmissionsFromEmails(cmd.Context(), req)
+		if err != nil {
+			return fmt.Errorf("failed to create submissions from emails: %w", err)
+		}
+
+		outputResult(mode, createdSubmitters, func() {
+			if len(createdSubmitters) > 0 {
+				fmt.Printf("Created submission %d with %d submitter(s)\n", createdSubmitters[0].SubmissionID, len(createdSubmitters))
+			}
+		})
+		return nil
+	}
+
+	if len(submissionsSubmitters) == 0 {
+		return fmt.Errorf("either --submitters or --emails is required")
+	}
+
+	submitters, err := parseSubmitters(submissionsSubmitters)
+	if err != nil {
+		return err
+	}
+	if err := resolveMissingRolesFromTemplate(cmd.Context(), client, submissionsTemplateID, submitters); err != nil {
+		return err
+	}
 
 	req := &api.CreateSubmissionRequest{
 		TemplateID:           submissionsTemplateID,
@@ -435,6 +516,11 @@ func runSubmissionsCreatePDF(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	for i := range submitters {
+		if submitters[i].Role == "" {
+			submitters[i].Role = "Signer"
+		}
+	}
 
 	client, err := getClientOrError(cmd)
 	if err != nil {
@@ -458,6 +544,11 @@ func runSubmissionsCreateDOCX(cmd *cobra.Command, args []string) error {
 	submitters, err := parseSubmitters(submissionsSubmitters)
 	if err != nil {
 		return err
+	}
+	for i := range submitters {
+		if submitters[i].Role == "" {
+			submitters[i].Role = "Signer"
+		}
 	}
 
 	variables := parseVariables(submissionsVariables)
@@ -485,6 +576,11 @@ func runSubmissionsCreateHTML(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	for i := range submitters {
+		if submitters[i].Role == "" {
+			submitters[i].Role = "Signer"
+		}
+	}
 
 	client, err := getClientOrError(cmd)
 	if err != nil {
@@ -505,16 +601,16 @@ func runSubmissionsCreateHTML(cmd *cobra.Command, args []string) error {
 }
 
 func runSubmissionsDocuments(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
-	if err != nil {
-		return fmt.Errorf("invalid submission ID: %w", err)
-	}
-
 	client, err := getClientOrError(cmd)
 	if err != nil {
 		return err
 	}
 	mode := getOutputMode()
+
+	id, err := resolveSubmissionID(cmd.Context(), client, args[0])
+	if err != nil {
+		return err
+	}
 
 	documents, err := client.GetSubmissionDocuments(cmd.Context(), id)
 	if err != nil {
@@ -544,20 +640,20 @@ func runSubmissionsDocuments(cmd *cobra.Command, args []string) error {
 }
 
 func runSubmissionsArchive(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
-	if err != nil {
-		return fmt.Errorf("invalid submission ID: %w", err)
-	}
-
-	if dryRunPreview("archive submission %d", id) {
-		return nil
-	}
-
 	client, err := getClientOrError(cmd)
 	if err != nil {
 		return err
 	}
 	mode := getOutputMode()
+
+	id, err := resolveSubmissionID(cmd.Context(), client, args[0])
+	if err != nil {
+		return err
+	}
+
+	if dryRunPreview("archive submission %d", id) {
+		return nil
+	}
 
 	result, err := client.ArchiveSubmission(cmd.Context(), id)
 	if err != nil {
@@ -583,6 +679,10 @@ func runSubmissionsInit(cmd *cobra.Command, args []string) error {
 	}
 	mode := getOutputMode()
 
+	if err := resolveMissingRolesFromTemplate(cmd.Context(), client, submissionsTemplateID, submitters); err != nil {
+		return err
+	}
+
 	req := &api.CreateSubmissionRequest{
 		TemplateID: submissionsTemplateID,
 		Submitters: submitters,
@@ -606,6 +706,75 @@ func runSubmissionsInit(cmd *cobra.Command, args []string) error {
 			}
 		}
 	})
+
+	return nil
+}
+
+func resolveMissingRolesFromTemplate(ctx context.Context, client *api.Client, templateID int, submitters []api.SubmitterRequest) error {
+	needsRoles := false
+	for _, s := range submitters {
+		if s.Role == "" {
+			needsRoles = true
+			break
+		}
+	}
+	if !needsRoles {
+		return nil
+	}
+
+	tpl, err := client.GetTemplate(ctx, templateID)
+	if err != nil {
+		return fmt.Errorf("failed to resolve roles from template %d: %w", templateID, err)
+	}
+
+	var roles []string
+	for _, r := range tpl.Submitters {
+		if r.Name != "" {
+			roles = append(roles, r.Name)
+		}
+	}
+	if len(roles) == 0 {
+		roles = []string{"Signer"}
+	}
+
+	if len(roles) == 1 {
+		for i := range submitters {
+			if submitters[i].Role == "" {
+				submitters[i].Role = roles[0]
+			}
+		}
+		return nil
+	}
+
+	// Multiple roles: only auto-assign when it is unambiguous.
+	allMissing := true
+	for _, s := range submitters {
+		if s.Role != "" {
+			allMissing = false
+			break
+		}
+	}
+
+	if allMissing {
+		if len(submitters) != len(roles) {
+			return fmt.Errorf("submitter roles required: template has roles %v, but got %d submitter(s). Use EMAIL:ROLE or provide %d emails", roles, len(submitters), len(roles))
+		}
+		for i := range submitters {
+			submitters[i].Role = roles[i]
+		}
+		return nil
+	}
+
+	// Some roles provided: fill missing by position when possible.
+	for i := range submitters {
+		if submitters[i].Role != "" {
+			continue
+		}
+		if i >= len(roles) {
+			return fmt.Errorf("submitter roles required: template has roles %v. Use EMAIL:ROLE for submitter %d", roles, i+1)
+		}
+		submitters[i].Role = roles[i]
+	}
 
 	return nil
 }

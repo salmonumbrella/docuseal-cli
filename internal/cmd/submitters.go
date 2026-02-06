@@ -4,16 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/docuseal/docuseal-cli/internal/api"
+	"github.com/docuseal/docuseal-cli/internal/outfmt"
 	"github.com/docuseal/docuseal-cli/internal/validation"
 	"github.com/spf13/cobra"
 )
 
 var submittersCmd = &cobra.Command{
 	Use:     "submitters",
-	Aliases: []string{"signers"},
+	Aliases: []string{"submitter", "signers", "signer"},
 	Short:   "Manage submitters",
 	Long:    `List, view, and update submission submitters.`,
 }
@@ -121,9 +121,47 @@ func runSubmittersList(cmd *cobra.Command, args []string) error {
 	}
 	mode := getOutputMode()
 
-	submitters, err := client.ListSubmitters(cmd.Context(), submittersLimit, submittersSubmissionID)
+	limit := submittersLimit
+	reqLimit := limit
+	if ((mode == outfmt.JSON && !bareJSON) || (mode == outfmt.NDJSON && withMeta)) && limit > 0 {
+		reqLimit = limit + 1
+	}
+
+	submitters, err := client.ListSubmitters(cmd.Context(), reqLimit, submittersSubmissionID)
 	if err != nil {
 		return fmt.Errorf("failed to list submitters: %w", err)
+	}
+
+	if (mode == outfmt.JSON && !bareJSON) || (mode == outfmt.NDJSON && withMeta) {
+		out := submitters
+		hasMore := false
+		if limit > 0 && len(out) > limit {
+			hasMore = true
+			out = out[:limit]
+		}
+
+		if mode == outfmt.JSON && !bareJSON {
+			env := makeListEnvelope(out, len(out), limit, 0, 0, hasMore, 0, 0)
+			env["submission_id"] = submittersSubmissionID
+			outputResult(mode, env, func() {})
+			return nil
+		}
+
+		meta := map[string]any{
+			"_meta": map[string]any{
+				"count":         len(out),
+				"limit":         limit,
+				"has_more":      hasMore,
+				"submission_id": submittersSubmissionID,
+			},
+		}
+		stream := make([]any, 0, len(out)+1)
+		for _, s := range out {
+			stream = append(stream, s)
+		}
+		stream = append(stream, meta)
+		outputResult(mode, stream, func() {})
+		return nil
 	}
 
 	outputResult(mode, submitters, func() {
@@ -160,7 +198,7 @@ func runSubmittersList(cmd *cobra.Command, args []string) error {
 }
 
 func runSubmittersGet(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
+	id, err := parseIDArg(args[0])
 	if err != nil {
 		return fmt.Errorf("invalid submitter ID: %w", err)
 	}
@@ -216,7 +254,7 @@ func runSubmittersGet(cmd *cobra.Command, args []string) error {
 }
 
 func runSubmittersUpdate(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
+	id, err := parseIDArg(args[0])
 	if err != nil {
 		return fmt.Errorf("invalid submitter ID: %w", err)
 	}

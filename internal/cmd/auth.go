@@ -90,7 +90,9 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 	}
 
 	// Default: browser-based login
-	fmt.Fprintln(os.Stderr, "Opening browser for authentication...")
+	if !quiet {
+		fmt.Fprintln(os.Stderr, "Opening browser for authentication...")
+	}
 	server := auth.NewSetupServer()
 	result, err := server.Start(cmd.Context())
 	if err != nil {
@@ -99,7 +101,9 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 	if result.Error != nil {
 		return result.Error
 	}
-	fmt.Fprintln(os.Stderr, "✓ Credentials verified and saved to keychain")
+	if !quiet {
+		fmt.Fprintln(os.Stderr, "OK: Credentials verified and saved to keychain")
+	}
 	return nil
 }
 
@@ -111,7 +115,9 @@ func runCLILogin(cmd *cobra.Command) error {
 
 	// Warn about non-HTTPS usage for non-localhost URLs
 	if !strings.HasPrefix(authURL, "https://") && !isLocalhost(authURL) {
-		fmt.Fprintln(os.Stderr, "⚠️  Warning: Using non-HTTPS URL. Credentials will be transmitted insecurely.")
+		if !quiet {
+			fmt.Fprintln(os.Stderr, "WARNING: Using non-HTTPS URL. Credentials will be transmitted insecurely.")
+		}
 	}
 
 	creds := config.Credentials{
@@ -131,7 +137,9 @@ func runCLILogin(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to save credentials: %w", err)
 	}
 
-	fmt.Fprintln(os.Stderr, "✓ Credentials verified and saved to keychain")
+	if !quiet {
+		fmt.Fprintln(os.Stderr, "OK: Credentials verified and saved to keychain")
+	}
 	return nil
 }
 
@@ -146,7 +154,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	// Try to load credentials
 	creds, err := config.Load()
 	if err != nil {
-		if mode == jsonMode {
+		if mode == outfmt.JSON || mode == outfmt.NDJSON {
 			outputResult(mode, map[string]any{
 				"authenticated": false,
 				"source":        "",
@@ -194,7 +202,9 @@ func runAuthLogout(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to remove credentials: %w", err)
 	}
 
-	fmt.Fprintln(os.Stderr, "✓ Credentials removed from keychain")
+	if !quiet {
+		fmt.Fprintln(os.Stderr, "OK: Credentials removed from keychain")
+	}
 	return nil
 }
 
@@ -243,6 +253,3 @@ func runAuthWhoami(cmd *cobra.Command, args []string) error {
 
 	return nil
 }
-
-// jsonMode is a convenience alias
-var jsonMode = outfmt.JSON

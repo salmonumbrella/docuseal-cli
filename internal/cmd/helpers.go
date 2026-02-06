@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -22,12 +23,11 @@ func parseSubmitters(submitterStrs []string) ([]api.SubmitterRequest, error) {
 	var submitters []api.SubmitterRequest
 	for _, s := range submitterStrs {
 		parts := strings.SplitN(s, ":", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid submitter format %q: expected EMAIL:ROLE or \"Name <EMAIL>:ROLE\"", s)
-		}
-
 		emailPart := strings.TrimSpace(parts[0])
-		role := strings.TrimSpace(parts[1])
+		role := ""
+		if len(parts) == 2 {
+			role = strings.TrimSpace(parts[1])
+		}
 
 		var name, email string
 		if matches := emailWithNameRe.FindStringSubmatch(emailPart); matches != nil {
@@ -93,6 +93,39 @@ func parseIntSlice(s string) ([]int, error) {
 		result = append(result, id)
 	}
 	return result, nil
+}
+
+// parseIDArg accepts a numeric ID or a URL containing a numeric ID as the last path segment.
+// This matches common agent "desire paths" like passing a copied browser URL.
+func parseIDArg(s string) (int, error) {
+	raw := strings.TrimSpace(s)
+	if raw == "" {
+		return 0, fmt.Errorf("empty ID")
+	}
+	if id, err := strconv.Atoi(raw); err == nil {
+		return id, nil
+	}
+
+	// Try URL parsing first.
+	if u, err := url.Parse(raw); err == nil && u != nil && u.Host != "" && u.Path != "" {
+		parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+		if len(parts) > 0 {
+			last := parts[len(parts)-1]
+			if id, err := strconv.Atoi(last); err == nil {
+				return id, nil
+			}
+		}
+	}
+
+	// Fall back to a trailing number.
+	re := regexp.MustCompile(`(\d+)$`)
+	if m := re.FindStringSubmatch(raw); len(m) == 2 {
+		if id, err := strconv.Atoi(m[1]); err == nil {
+			return id, nil
+		}
+	}
+
+	return 0, fmt.Errorf("invalid ID %q: expected a number or a URL ending in a number", s)
 }
 
 // newTabWriter creates a tabwriter for aligned output

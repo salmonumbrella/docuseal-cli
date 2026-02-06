@@ -8,12 +8,13 @@ import (
 	"strings"
 
 	"github.com/docuseal/docuseal-cli/internal/api"
+	"github.com/docuseal/docuseal-cli/internal/outfmt"
 	"github.com/spf13/cobra"
 )
 
 var templatesCmd = &cobra.Command{
 	Use:     "templates",
-	Aliases: []string{"tpl", "t"},
+	Aliases: []string{"template", "tpl", "t"},
 	Short:   "Manage templates",
 	Long:    `List, create, update, and manage DocuSeal templates.`,
 }
@@ -231,9 +232,59 @@ func runTemplatesList(cmd *cobra.Command, args []string) error {
 	}
 	mode := getOutputMode()
 
-	templates, err := client.ListTemplates(cmd.Context(), templatesLimit, templatesFolder, templatesArchived, templatesAfter, templatesBefore)
+	limit := templatesLimit
+	reqLimit := limit
+	if ((mode == outfmt.JSON && !bareJSON) || (mode == outfmt.NDJSON && withMeta)) && limit > 0 {
+		reqLimit = limit + 1
+	}
+
+	templates, err := client.ListTemplates(cmd.Context(), reqLimit, templatesFolder, templatesArchived, templatesAfter, templatesBefore)
 	if err != nil {
 		return fmt.Errorf("failed to list templates: %w", err)
+	}
+
+	// Machine-friendly envelope / meta.
+	if (mode == outfmt.JSON && !bareJSON) || (mode == outfmt.NDJSON && withMeta) {
+		out := templates
+		hasMore := false
+		if limit > 0 && len(out) > limit {
+			hasMore = true
+			out = out[:limit]
+		}
+		nextAfter := 0
+		nextBefore := 0
+		if len(out) > 0 {
+			nextBefore = out[0].ID
+			if hasMore {
+				nextAfter = out[len(out)-1].ID
+			}
+		}
+
+		if mode == outfmt.JSON && !bareJSON {
+			env := makeListEnvelope(out, len(out), limit, templatesAfter, templatesBefore, hasMore, nextAfter, nextBefore)
+			outputResult(mode, env, func() {})
+			return nil
+		}
+
+		// NDJSON with trailing meta line.
+		meta := map[string]any{
+			"_meta": map[string]any{
+				"count":       len(out),
+				"limit":       limit,
+				"after":       templatesAfter,
+				"before":      templatesBefore,
+				"has_more":    hasMore,
+				"next_after":  nextAfter,
+				"next_before": nextBefore,
+			},
+		}
+		stream := make([]any, 0, len(out)+1)
+		for _, t := range out {
+			stream = append(stream, t)
+		}
+		stream = append(stream, meta)
+		outputResult(mode, stream, func() {})
+		return nil
 	}
 
 	outputResult(mode, templates, func() {
@@ -269,16 +320,16 @@ func runTemplatesList(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesGet(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
-	if err != nil {
-		return fmt.Errorf("invalid template ID: %w", err)
-	}
-
 	client, err := getClientOrError(cmd)
 	if err != nil {
 		return err
 	}
 	mode := getOutputMode()
+
+	id, err := resolveTemplateID(cmd.Context(), client, args[0])
+	if err != nil {
+		return err
+	}
 
 	template, err := client.GetTemplate(cmd.Context(), id)
 	if err != nil {
@@ -398,16 +449,16 @@ func runTemplatesCreateHTML(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesClone(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
-	if err != nil {
-		return fmt.Errorf("invalid template ID: %w", err)
-	}
-
 	client, err := getClientOrError(cmd)
 	if err != nil {
 		return err
 	}
 	mode := getOutputMode()
+
+	id, err := resolveTemplateID(cmd.Context(), client, args[0])
+	if err != nil {
+		return err
+	}
 
 	template, err := client.CloneTemplate(cmd.Context(), id, templatesName, templatesFolder)
 	if err != nil {
@@ -446,16 +497,16 @@ func runTemplatesMerge(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesUpdate(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
-	if err != nil {
-		return fmt.Errorf("invalid template ID: %w", err)
-	}
-
 	client, err := getClientOrError(cmd)
 	if err != nil {
 		return err
 	}
 	mode := getOutputMode()
+
+	id, err := resolveTemplateID(cmd.Context(), client, args[0])
+	if err != nil {
+		return err
+	}
 
 	template, err := client.UpdateTemplate(cmd.Context(), id, templatesName, templatesFolder)
 	if err != nil {
@@ -470,20 +521,20 @@ func runTemplatesUpdate(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesArchive(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
-	if err != nil {
-		return fmt.Errorf("invalid template ID: %w", err)
-	}
-
-	if dryRunPreview("archive template %d", id) {
-		return nil
-	}
-
 	client, err := getClientOrError(cmd)
 	if err != nil {
 		return err
 	}
 	mode := getOutputMode()
+
+	id, err := resolveTemplateID(cmd.Context(), client, args[0])
+	if err != nil {
+		return err
+	}
+
+	if dryRunPreview("archive template %d", id) {
+		return nil
+	}
 
 	result, err := client.ArchiveTemplate(cmd.Context(), id)
 	if err != nil {
@@ -498,16 +549,16 @@ func runTemplatesArchive(cmd *cobra.Command, args []string) error {
 }
 
 func runTemplatesUpdateDocuments(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
-	if err != nil {
-		return fmt.Errorf("invalid template ID: %w", err)
-	}
-
 	client, err := getClientOrError(cmd)
 	if err != nil {
 		return err
 	}
 	mode := getOutputMode()
+
+	id, err := resolveTemplateID(cmd.Context(), client, args[0])
+	if err != nil {
+		return err
+	}
 
 	// Validate position
 	if templatesDocPosition < 0 {

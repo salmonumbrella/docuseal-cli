@@ -7,12 +7,13 @@ import (
 	"strings"
 
 	"github.com/docuseal/docuseal-cli/internal/api"
+	"github.com/docuseal/docuseal-cli/internal/outfmt"
 	"github.com/spf13/cobra"
 )
 
 var webhooksCmd = &cobra.Command{
 	Use:     "webhooks",
-	Aliases: []string{"wh"},
+	Aliases: []string{"webhook", "wh"},
 	Short:   "Manage webhooks",
 	Long:    `List, create, update, and manage DocuSeal webhooks.`,
 }
@@ -138,9 +139,57 @@ func runWebhooksList(cmd *cobra.Command, args []string) error {
 	}
 	mode := getOutputMode()
 
-	webhooks, err := client.ListWebhooks(cmd.Context(), webhooksLimit, webhooksAfter, webhooksBefore)
+	limit := webhooksLimit
+	reqLimit := limit
+	if ((mode == outfmt.JSON && !bareJSON) || (mode == outfmt.NDJSON && withMeta)) && limit > 0 {
+		reqLimit = limit + 1
+	}
+
+	webhooks, err := client.ListWebhooks(cmd.Context(), reqLimit, webhooksAfter, webhooksBefore)
 	if err != nil {
 		return fmt.Errorf("failed to list webhooks: %w", err)
+	}
+
+	if (mode == outfmt.JSON && !bareJSON) || (mode == outfmt.NDJSON && withMeta) {
+		out := webhooks
+		hasMore := false
+		if limit > 0 && len(out) > limit {
+			hasMore = true
+			out = out[:limit]
+		}
+		nextAfter := 0
+		nextBefore := 0
+		if len(out) > 0 {
+			nextBefore = out[0].ID
+			if hasMore {
+				nextAfter = out[len(out)-1].ID
+			}
+		}
+
+		if mode == outfmt.JSON && !bareJSON {
+			env := makeListEnvelope(out, len(out), limit, webhooksAfter, webhooksBefore, hasMore, nextAfter, nextBefore)
+			outputResult(mode, env, func() {})
+			return nil
+		}
+
+		meta := map[string]any{
+			"_meta": map[string]any{
+				"count":       len(out),
+				"limit":       limit,
+				"after":       webhooksAfter,
+				"before":      webhooksBefore,
+				"has_more":    hasMore,
+				"next_after":  nextAfter,
+				"next_before": nextBefore,
+			},
+		}
+		stream := make([]any, 0, len(out)+1)
+		for _, wh := range out {
+			stream = append(stream, wh)
+		}
+		stream = append(stream, meta)
+		outputResult(mode, stream, func() {})
+		return nil
 	}
 
 	outputResult(mode, webhooks, func() {
@@ -182,7 +231,7 @@ func runWebhooksList(cmd *cobra.Command, args []string) error {
 }
 
 func runWebhooksGet(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
+	id, err := parseIDArg(args[0])
 	if err != nil {
 		return fmt.Errorf("invalid webhook ID: %w", err)
 	}
@@ -251,7 +300,7 @@ func runWebhooksCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runWebhooksUpdate(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
+	id, err := parseIDArg(args[0])
 	if err != nil {
 		return fmt.Errorf("invalid webhook ID: %w", err)
 	}
@@ -292,7 +341,7 @@ func runWebhooksUpdate(cmd *cobra.Command, args []string) error {
 }
 
 func runWebhooksDelete(cmd *cobra.Command, args []string) error {
-	id, err := strconv.Atoi(args[0])
+	id, err := parseIDArg(args[0])
 	if err != nil {
 		return fmt.Errorf("invalid webhook ID: %w", err)
 	}
