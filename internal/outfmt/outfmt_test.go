@@ -426,6 +426,127 @@ func TestContextChaining(t *testing.T) {
 	}
 }
 
+func TestNilSlicesToEmpty(t *testing.T) {
+	t.Run("nil slice in struct becomes empty", func(t *testing.T) {
+		type S struct {
+			Items []string `json:"items"`
+		}
+		v := S{Items: nil}
+		NilSlicesToEmpty(&v)
+		if v.Items == nil {
+			t.Fatal("expected non-nil slice after NilSlicesToEmpty")
+		}
+		if len(v.Items) != 0 {
+			t.Fatalf("expected empty slice, got length %d", len(v.Items))
+		}
+	})
+
+	t.Run("non-nil slice preserved", func(t *testing.T) {
+		type S struct {
+			Items []string `json:"items"`
+		}
+		v := S{Items: []string{"a", "b"}}
+		NilSlicesToEmpty(&v)
+		if len(v.Items) != 2 {
+			t.Fatalf("expected 2 items, got %d", len(v.Items))
+		}
+	})
+
+	t.Run("nested struct nil slices", func(t *testing.T) {
+		type Inner struct {
+			Tags []string `json:"tags"`
+		}
+		type Outer struct {
+			Name  string  `json:"name"`
+			Inner Inner   `json:"inner"`
+			Items []Inner `json:"items"`
+		}
+		v := Outer{
+			Name:  "test",
+			Inner: Inner{Tags: nil},
+			Items: nil,
+		}
+		NilSlicesToEmpty(&v)
+		if v.Inner.Tags == nil {
+			t.Fatal("expected inner tags to be non-nil")
+		}
+		if v.Items == nil {
+			t.Fatal("expected items to be non-nil")
+		}
+	})
+
+	t.Run("WriteJSON emits empty array not null", func(t *testing.T) {
+		type S struct {
+			Items []string `json:"items"`
+		}
+		v := S{Items: nil}
+		buf := &bytes.Buffer{}
+		if err := WriteJSON(buf, &v); err != nil {
+			t.Fatal(err)
+		}
+		got := buf.String()
+		if strings.Contains(got, "null") {
+			t.Errorf("WriteJSON produced null for nil slice: %s", got)
+		}
+		if !strings.Contains(got, `"items": []`) {
+			t.Errorf("WriteJSON did not produce empty array: %s", got)
+		}
+	})
+
+	t.Run("WriteJSONCompact emits empty array not null", func(t *testing.T) {
+		type S struct {
+			Items []string `json:"items"`
+		}
+		v := S{Items: nil}
+		buf := &bytes.Buffer{}
+		if err := WriteJSONCompact(buf, &v); err != nil {
+			t.Fatal(err)
+		}
+		got := buf.String()
+		if strings.Contains(got, "null") {
+			t.Errorf("WriteJSONCompact produced null for nil slice: %s", got)
+		}
+	})
+
+	t.Run("pointer to struct", func(t *testing.T) {
+		type S struct {
+			Items []int `json:"items"`
+		}
+		v := &S{Items: nil}
+		NilSlicesToEmpty(v)
+		if v.Items == nil {
+			t.Fatal("expected non-nil slice")
+		}
+	})
+
+	t.Run("slice of structs with nil slices", func(t *testing.T) {
+		type S struct {
+			Tags []string `json:"tags"`
+		}
+		items := []S{{Tags: nil}, {Tags: []string{"a"}}, {Tags: nil}}
+		NilSlicesToEmpty(&items)
+		for i, item := range items {
+			if item.Tags == nil {
+				t.Errorf("items[%d].Tags is nil", i)
+			}
+		}
+		if len(items[1].Tags) != 1 || items[1].Tags[0] != "a" {
+			t.Error("existing tags were modified")
+		}
+	})
+
+	t.Run("nil pointer field ignored safely", func(t *testing.T) {
+		type Inner struct {
+			Tags []string `json:"tags"`
+		}
+		type Outer struct {
+			Ref *Inner `json:"ref"`
+		}
+		v := Outer{Ref: nil}
+		NilSlicesToEmpty(&v) // should not panic
+	})
+}
+
 func TestConcurrentContextAccess(t *testing.T) {
 	// Test that concurrent access to different contexts works correctly
 	ctx1 := WithMode(context.Background(), JSON)

@@ -22,21 +22,21 @@ type schemaFlag struct {
 type schemaCommand struct {
 	CommandPath string          `json:"command_path"`
 	Use         string          `json:"use"`
-	Aliases     []string        `json:"aliases,omitempty"`
+	Aliases     []string        `json:"aliases"`
 	Short       string          `json:"short,omitempty"`
 	Long        string          `json:"long,omitempty"`
 	Example     string          `json:"example,omitempty"`
 	Hidden      bool            `json:"hidden,omitempty"`
-	LocalFlags  []schemaFlag    `json:"local_flags,omitempty"`
-	Persistent  []schemaFlag    `json:"persistent_flags,omitempty"`
-	Inherited   []schemaFlag    `json:"inherited_flags,omitempty"`
-	Subcommands []schemaCommand `json:"subcommands,omitempty"`
+	LocalFlags  []schemaFlag    `json:"local_flags"`
+	Persistent  []schemaFlag    `json:"persistent_flags"`
+	Inherited   []schemaFlag    `json:"inherited_flags"`
+	Subcommands []schemaCommand `json:"subcommands"`
 }
 
 type cliSchema struct {
 	Name        string            `json:"name"`
 	VersionInfo map[string]string `json:"version"`
-	GlobalFlags []schemaFlag      `json:"global_flags,omitempty"`
+	GlobalFlags []schemaFlag      `json:"global_flags"`
 	Commands    []schemaCommand   `json:"commands"`
 }
 
@@ -77,7 +77,7 @@ func buildSchema() cliSchema {
 }
 
 func commandsToSchema(cmd *cobra.Command) []schemaCommand {
-	var out []schemaCommand
+	out := make([]schemaCommand, 0)
 	for _, c := range cmd.Commands() {
 		if !c.IsAvailableCommand() {
 			continue
@@ -89,10 +89,14 @@ func commandsToSchema(cmd *cobra.Command) []schemaCommand {
 }
 
 func schemaCommandFromCommand(c *cobra.Command) schemaCommand {
+	aliases := c.Aliases
+	if aliases == nil {
+		aliases = []string{}
+	}
 	return schemaCommand{
 		CommandPath: c.CommandPath(),
 		Use:         c.Use,
-		Aliases:     c.Aliases,
+		Aliases:     aliases,
 		Short:       c.Short,
 		Long:        c.Long,
 		Example:     c.Example,
@@ -105,7 +109,7 @@ func schemaCommandFromCommand(c *cobra.Command) schemaCommand {
 }
 
 func flagsToSchema(fs *pflag.FlagSet) []schemaFlag {
-	var out []schemaFlag
+	out := make([]schemaFlag, 0)
 	if fs == nil {
 		return out
 	}

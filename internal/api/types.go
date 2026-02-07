@@ -14,12 +14,12 @@ type Template struct {
 	ExternalID     string         `json:"external_id,omitempty"`
 	Source         string         `json:"source,omitempty"`
 	ApplicationKey string         `json:"application_key,omitempty"`
-	Fields         []Field        `json:"fields,omitempty"`
-	Submitters     []Role         `json:"submitters,omitempty"`
+	Fields         []Field        `json:"fields"`
+	Submitters     []Role         `json:"submitters"`
 	DocumentsCount int            `json:"documents_count,omitempty"`
 	SharedLink     bool           `json:"shared_link,omitempty"`
 	Preferences    map[string]any `json:"preferences,omitempty"`
-	Schema         []SchemaItem   `json:"schema,omitempty"`
+	Schema         []SchemaItem   `json:"schema"`
 	Author         *User          `json:"author,omitempty"`
 	FolderID       int            `json:"folder_id,omitempty"`
 	AuthorID       int            `json:"author_id,omitempty"`
@@ -32,8 +32,8 @@ type Field struct {
 	Type      string   `json:"type"`
 	Required  bool     `json:"required"`
 	Submitter string   `json:"submitter_uuid,omitempty"`
-	Areas     []Area   `json:"areas,omitempty"`
-	Options   []string `json:"options,omitempty"`
+	Areas     []Area   `json:"areas"`
+	Options   []string `json:"options"`
 }
 
 // Area represents a field's position on a document
@@ -63,8 +63,8 @@ type Submission struct {
 	CompletedAt         *time.Time  `json:"completed_at"`
 	TemplateID          int         `json:"template_id,omitempty"`
 	TemplateName        string      `json:"template_name,omitempty"`
-	Submitters          []Submitter `json:"submitters,omitempty"`
-	Documents           []Document  `json:"documents,omitempty"`
+	Submitters          []Submitter `json:"submitters"`
+	Documents           []Document  `json:"documents"`
 	Name                string      `json:"name,omitempty"`
 	SubmittersOrder     string      `json:"submitters_order,omitempty"`
 	AuditLogURL         string      `json:"audit_log_url,omitempty"`
@@ -92,12 +92,12 @@ type Submitter struct {
 	ExternalID       string            `json:"external_id,omitempty"`
 	ApplicationKey   string            `json:"application_key,omitempty"`
 	Metadata         map[string]any    `json:"metadata,omitempty"`
-	Values           []FieldValue      `json:"values,omitempty"`
-	Documents        []Document        `json:"documents,omitempty"`
+	Values           []FieldValue      `json:"values"`
+	Documents        []Document        `json:"documents"`
 	EmbedSrc         string            `json:"embed_src,omitempty"`
 	Preferences      map[string]any    `json:"preferences,omitempty"`
 	Template         *TemplateRef      `json:"template,omitempty"`
-	SubmissionEvents []SubmissionEvent `json:"submission_events,omitempty"`
+	SubmissionEvents []SubmissionEvent `json:"submission_events"`
 }
 
 // FieldValue represents a field's submitted value
