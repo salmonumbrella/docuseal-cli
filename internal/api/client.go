@@ -143,7 +143,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, result a
 				if attempt < c.maxRetries {
 					delay := c.baseDelay * time.Duration(1<<attempt) // exponential backoff
 					maxJitter := int64(delay / 2)
-					jitter := time.Duration(rand.Int64N(maxJitter))
+					jitter := time.Duration(rand.Int64N(maxJitter)) // #nosec G404 -- jitter for retry backoff, not security
 					sleepDuration := delay + jitter
 
 					select {
