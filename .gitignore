@@ -1,0 +1,25 @@
+bin/
+dist/
+*.exe
+.DS_Store
+node_modules/
+coverage.out
+*.log
+/docuseal
+
+# IDE & AI
+.vscode/
+.claude/
+.cursor/
+.specstory/
+CLAUDE.md
+*.swp
+*.swo
+*~
+
+# Agent artifacts
+.dm/
+.private-journal/
+
+# Documentation (plans/drafts)
+docs/

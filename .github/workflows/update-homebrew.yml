@@ -1,0 +1,25 @@
+name: Update Homebrew
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-homebrew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger homebrew-tap update
+        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          repository: salmonumbrella/homebrew-tap
+          event-type: update-formula
+          client-payload: |
+            {
+              "formula_name": "docuseal-cli",
+              "version": "${{ github.event.release.tag_name }}",
+              "repo": "salmonumbrella/docuseal-cli",
+              "binary_name": "docuseal",
+              "archive_prefix": "docuseal",
+              "description": "CLI for DocuSeal document signing"
+            }
